@@ -1,0 +1,24 @@
+properties:
+  record_id:
+    type: string
+  title:
+    type: string
+  published_date:
+    type: string
+  categories:
+    type: array
+    items:
+      type: string
+  content:
+    type: string
+  validation_status: boolean 
+  language: string
+required:
+  - record_id
+  - title
+  - content
+  - validation_status
+  - language
+post_process_requirements: |
+    - Check any factual inconsistencies in the content of pre-processed record commpare with the content of orignial record, and return the corrected content
+    - Check if the language of content of the record is Vietnamese, and translate the content into Vietnamese if it is not already in Vietnamese.
