@@ -1,8 +1,8 @@
-# Legal QA Preprocessing Microservice
+# Legal QA RAG
 
 ## Overview
 
-The **Legal QA Preprocessing Microservice** is a crucial component of the larger **Vietnamese Legal QA Chatbot** project. This microservice is designed to format and standardize legal question-and-answer texts, ensuring they are uniformly structured for efficient retrieval and storage. By preprocessing the legal content, it enhances the chatbot's ability to provide accurate and relevant responses to user inquiries.
+The **Legal QA RAG** is a crucial component of the larger **Vietnamese Legal QA Chatbot** project. This microservice is designed to provide legal question-and-answer texts, utilizing Qdrant Vector Database and AWS Lambda function acting as API gateway.
 
 ## Features
 
