@@ -1,3 +1,4 @@
+# src/config/serverless.yml
 service: rag-api-service
 
 frameworkVersion: '3'

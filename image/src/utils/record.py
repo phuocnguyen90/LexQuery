@@ -13,7 +13,7 @@ import re
 import pandas as pd
 from utils.llm_formatter import LLMFormatter
 import uuid
-from utils.load_config import load_config
+
 from utils.validation import detect_text_type
 
 # Configure logging

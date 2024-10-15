@@ -25,7 +25,7 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     :param top_k: Number of top similar documents to retrieve.
     :return: List of dictionaries containing 'record_id', 'source', and 'content'.
     """
-    from rag_app.get_embedding_function import get_embedding_function  # Adjust import path as necessary
+    from rag.get_embedding_function import get_embedding_function  # Adjust import path as necessary
 
     embed_func = get_embedding_function()
 

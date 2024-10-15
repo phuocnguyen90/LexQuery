@@ -13,7 +13,8 @@ from typing import Dict, Any, List
 
 
 from providers.groq_provider import GroqProvider
-from utils.load_config import load_config
+from utils.load_config import ConfigLoader
+
 from utils.record import Record
 
 
@@ -23,16 +24,21 @@ logger = logging.getLogger(__name__)
 
 # Load configuration from config.yaml
 try:
-    config = load_config('src/config/config.yaml')
+    # Load global configuration
+    config = ConfigLoader().get_config()
     logger.info("Configuration loaded successfully.")
+
 except Exception as e:
     logger.error(f"Failed to load configuration: {e}")
     exit(1)
+# Load settings from configuration
+groq_config = config.get('groq', {})
+qdrant_config = config.get('qdrant', {})
 
-# Load environment variables
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-QDRANT_URL = os.getenv("QDRANT_URL")
+GROQ_API_KEY = groq_config.get('api_key', os.getenv('GROQ_API_KEY'))
+QDRANT_API_KEY = qdrant_config.get('api_key', os.getenv("QDRANT_API_KEY"))
+QDRANT_URL = qdrant_config.get('url', os.getenv("QDRANT_URL"))
+
 
 # Verify that required environment variables are provided
 if not QDRANT_API_KEY or not QDRANT_URL:
@@ -61,9 +67,8 @@ def fe_embed_text(text: str) -> list:
     try:
         # Initialize the FastEmbed embedding model once
         if not hasattr(fe_embed_text, "embedding_model"):
-            fe_embed_text.embedding_model = fastembed.TextEmbedding(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
+            model_name = config.get('embedding', {}).get('model_name', "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+            fe_embed_text.embedding_model = fastembed.TextEmbedding(model_name=model_name)
         
         # Obtain the embedding generator
         embedding_generator = fe_embed_text.embedding_model.embed(text)
@@ -93,6 +98,7 @@ def fe_embed_text(text: str) -> list:
     except Exception as e:
         logger.error(f"Failed to create embedding for the input: '{text}', error: {e}")
         return []
+
 
 
 # Step 2: Read JSONL File and Create Records

@@ -1,6 +1,13 @@
-# config.yaml
+# src/config/config.yaml
 
 provider: groq  # Options: groq, google_gemini
+
+embedding:
+  model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+qdrant:
+  api_key: ${QDRANT_API_KEY}
+  url: ${QDRANT_URL}
 
 groq:
   api_key: ${GROQ_API_KEY}
