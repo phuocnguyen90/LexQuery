@@ -1,0 +1,43 @@
+service: format-service
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.10
+  region: us-east-1
+  environment:
+    PREPROCESS_SCHEMA: ${ssm:/path/to/preprocessing_schema~true}
+    RAW_INPUT_BUCKET: your_s3_raw_input_bucket
+    FORMATTED_DATA_TABLE: your_formatted_dynamodb_table
+
+functions:
+  preprocess:
+    handler: src/handlers/preprocess_handler.handler
+    timeout: 30
+    memorySize: 256
+    events:
+      - s3:
+          bucket: ${self:provider.environment.RAW_INPUT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: raw/
+            - suffix: .txt
+
+resources:
+  Resources:
+    FormattedDataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.FORMATTED_DATA_TABLE}
+        AttributeDefinitions:
+          - AttributeName: document_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: document_id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+# Notes:
+# - This configuration has an `s3` trigger to process newly added raw text files.
+# - Stores formatted data in a separate DynamoDB table.

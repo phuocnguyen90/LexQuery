@@ -1,0 +1,50 @@
+service: rag-service
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.10
+  region: us-east-1
+  environment:
+    TABLE_NAME: your_dynamodb_table_name
+    GROQ_API_KEY: ${ssm:/path/to/groq_api_key~true}
+    QDRANT_API_KEY: ${ssm:/path/to/qdrant_api_key~true}
+    QDRANT_URL: ${ssm:/path/to/qdrant_url~true}
+    WORKER_LAMBDA_NAME: ${self:service}-worker
+
+functions:
+  api:
+    handler: src/handlers/api_handler.deployment_handler
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+  worker:
+    handler: src/handlers/work_handler.handler
+    timeout: 60
+    memorySize: 512
+    environment:
+      TABLE_NAME: ${self:provider.environment.TABLE_NAME}
+      GROQ_API_KEY: ${self:provider.environment.GROQ_API_KEY}
+      QDRANT_API_KEY: ${self:provider.environment.QDRANT_API_KEY}
+      QDRANT_URL: ${self:provider.environment.QDRANT_URL}
+
+resources:
+  Resources:
+    RagQueryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.TABLE_NAME}
+        AttributeDefinitions:
+          - AttributeName: query_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: query_id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+# Notes:
+# - Separate `api` and `worker` handlers based on the new src/handlers structure.
+# - Worker Lambda function has an increased timeout and memory to handle LLM interactions.

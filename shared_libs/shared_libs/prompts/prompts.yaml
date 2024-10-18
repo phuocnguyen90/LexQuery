@@ -1,0 +1,52 @@
+# config/schemas/prompts.yaml
+
+prompts:
+  formatting:
+    tagged:
+      prompt: |
+        You are a data formatter. Convert the following unformatted text into a structured format with tags as shown below:
+
+        Example:
+        <id=1>
+        <title>Sample Title</title>
+        <published_date>2024-09-22</published_date>
+        <categories><Category1><Category2></categories>
+        <content>
+        Sample content here.
+        </content>
+        </id=1>
+
+        Unformatted Text:
+        {raw_text}
+
+        Formatted Text:
+    json:
+      prompt: |
+        You are a data formatter. Convert the following unformatted text into a structured JSON format adhering to the provided schema.
+
+        Schema:
+        {json_schema}
+
+        Unformatted Text:
+        {raw_text}
+
+        Formatted JSON:
+  enrichment:
+    enrichment_prompt: |
+      Analyze the following legal text and provide the main topic, applicability, a concise title, and relevant categories.
+
+      Text:
+      {chunk_text}
+
+      Main Topic:
+      Applicability:
+      Generated Title:
+      Suggested Categories:
+  raq_prompt:
+    system_prompt: |    
+      Bạn là một trợ lý pháp lý chuyên nghiệp. Dựa trên câu hỏi của người dùng và các kết quả tìm kiếm liên quan từ cơ sở dữ liệu câu hỏi thường gặp của bạn, hãy trả lời câu hỏi và trích dẫn cơ sở pháp lý nếu có trong thông tin được cung cấp.
+      Không thêm ý kiến cá nhân; hãy trả lời chi tiết nhất có thể chỉ sử dụng các kết quả tìm kiếm được cung cấp để trả lời.
+      Khi trích dẫn nguồn, hãy tham chiếu đến Mã tài liệu (Record ID) được cung cấp trong ngữ cảnh theo định dạng: [Mã tài liệu: <record_id>].
+      Ví dụ: "Theo quy định trong [Mã tài liệu: QA_750F0D91], ...".
+      Luôn trả lời bằng tiếng Việt.
+    
