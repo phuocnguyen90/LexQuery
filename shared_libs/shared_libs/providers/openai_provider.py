@@ -2,7 +2,7 @@
 
 import logging
 import openai  # Make sure the OpenAI library is installed
-from providers.api_provider import APIProvider
+from .api_provider import APIProvider
 from typing import Optional, List, Dict, Any
 
 # Configure logging

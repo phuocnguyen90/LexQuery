@@ -11,8 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app and other components
 from src.handlers.api_handler import app
 from shared_libs.utils.query_cache import ProcessedMessageCache
-from shared_libs.utils.depreciated.load_config import ConfigLoader
-from shared_libs.providers.provider_utils import get_groq_provider
+from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.providers.get_provider import get_groq_provider
 from src.services.query_rag import query_rag, QueryResponse
 
 # Initialize TestClient for API

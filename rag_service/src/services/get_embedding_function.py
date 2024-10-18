@@ -1,6 +1,6 @@
 # src/services/get_embedding_function.py
 
-from rag_service.src.services.fe_embed import fe_embed_text 
+from fe_embed import fe_embed_text 
 
 class FastEmbedWrapper:
     """

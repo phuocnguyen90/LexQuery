@@ -1,7 +1,7 @@
-from shared_libs.utils.depreciated.load_config import ConfigLoader
-from providers.groq_provider import GroqProvider
-from providers.openai_provider import OpenAIProvider 
-from providers.gemini_provider import GeminiProvider
+from shared_libs.config.config_loader import ConfigLoader
+from .groq_provider import GroqProvider
+from .openai_provider import OpenAIProvider 
+from .gemini_provider import GeminiProvider
 
 # Load configuration
 config = ConfigLoader().get_config()

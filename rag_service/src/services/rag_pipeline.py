@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 from shared_libs.config_loader import ConfigLoader
 from shared_libs.providers import GroqProvider, OpenAIProvider

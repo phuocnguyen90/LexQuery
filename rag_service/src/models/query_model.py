@@ -1,4 +1,4 @@
-# src/query_model.py
+# src/model/query_model.py
 import os
 import boto3
 from pydantic import BaseModel, Field

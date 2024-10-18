@@ -2,7 +2,7 @@
 
 import logging
 import google.generativeai as genai
-from providers.api_provider import APIProvider
+from .api_provider import APIProvider
 from typing import Optional, List, Dict, Any
 
 # Configure logging

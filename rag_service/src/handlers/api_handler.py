@@ -9,24 +9,22 @@ from mangum import Mangum
 
 # Import from shared_libs
 from shared_libs.config_loader import ConfigLoader
-from shared_libs.providers import GroqProvider, get_provider  # Utility to get LLM provider
+from shared_libs.utils.provider_utils import load_llm_provider 
 from shared_libs.utils.logger import Logger
 from shared_libs.utils.cache import Cache
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import internal model
 from models.query_model import QueryModel
-from services.query_rag import query_rag  # Assuming you moved this into services
+from services.query_rag import query_rag
 
 # Environment variables
 WORKER_LAMBDA_NAME = os.environ.get("WORKER_LAMBDA_NAME", None)
 
-# Load the configuration globally so that it persists across invocations if the Lambda container is reused
-config = ConfigLoader.load_config(config_path='/app/config/config.yaml', dotenv_path='/app/config/.env')
-
-# Initialize the LLM provider (dynamically from config)
-provider_name = config.get("provider", "groq")
-llm_settings = config.get(provider_name, {})
-groq_provider = get_provider(provider_name, config=llm_settings)
+# Load the LLM provider (abstracted utility function handles fallbacks)
+llm_provider = load_llm_provider()
 
 # Initialize FastAPI application
 app = FastAPI()
@@ -63,7 +61,7 @@ def submit_query_endpoint(request: SubmitQueryRequest):
     else:
         # Handle the RAG processing directly (useful for local development)
         Logger.log_event("INFO", "Processing query locally", {"query_text": request.query_text})
-        query_response = query_rag(request.query_text, groq_provider)  # Use the globally defined groq_provider
+        query_response = query_rag(request.query_text, llm_provider)  # Use the LLM provider loaded from the utility
         new_query.answer_text = query_response.response_text
         new_query.sources = query_response.sources
         new_query.is_complete = True
@@ -113,7 +111,7 @@ def local_test_submit_query(request: SubmitQueryRequest):
         return cached_response
 
     # Process the query using RAG (local)
-    query_response = query_rag(request.query_text, groq_provider)
+    query_response = query_rag(request.query_text, llm_provider)
     response_data = {
         "query_text": request.query_text,
         "response_text": query_response.response_text,

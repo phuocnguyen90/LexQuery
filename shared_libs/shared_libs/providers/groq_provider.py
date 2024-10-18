@@ -3,7 +3,7 @@
 import logging
 from typing import Optional, List, Dict, Any
 from groq import Groq 
-from providers.api_provider import APIProvider
+from .api_provider import APIProvider
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

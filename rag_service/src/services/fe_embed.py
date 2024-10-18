@@ -3,30 +3,52 @@
 import logging
 import numpy as np
 from typing import List
-from shared_libs.providers import get_embedding_provider
+import fastembed  # FastEmbed as a local fallback
+from shared_libs.providers import ProviderFactory  # Updated import to dynamically get providers
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
 
 # Load configuration from shared_libs
-config = ConfigLoader.load_config()
-
-# Configure logging using Logger from shared_libs
+config_loader = ConfigLoader()
 logger = Logger.get_logger(__name__)
 
-# Get embedding provider instance (FastEmbed or similar)
-embedding_config = config.get("embedding", {})
-embedding_provider = get_embedding_provider(embedding_config)
+# Load embedding configuration from the global config
+embedding_config = config_loader.get_config_value("embedding", {})
+embedding_provider_name = embedding_config.get("provider_name", "local")
+
+# Attempt to initialize the embedding provider
+try:
+    if embedding_provider_name.lower() != "local":
+        embedding_provider = ProviderFactory.get_provider(
+            name=embedding_provider_name,
+            config=embedding_config,
+            requirements=""
+        )
+        logger.info(f"Using {embedding_provider_name} as the embedding provider.")
+    else:
+        raise ValueError("Local embedding will be used.")  # Force fallback to local embedding
+except Exception as e:
+    # Fall back to FastEmbed
+    logger.warning(f"Failed to initialize embedding provider '{embedding_provider_name}': {e}. Falling back to FastEmbed.")
+    embedding_provider = fastembed.TextEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
 
 def fe_embed_text(text: str) -> List[float]:
     """
-    Embed a single text using an embedding provider (e.g., FastEmbed).
+    Embed a single text using the selected embedding provider or FastEmbed as a fallback.
 
     :param text: A single text string to embed.
     :return: A list of floats representing the embedding vector.
     """
     try:
-        # Obtain the embedding generator from the provider
-        embedding_generator = embedding_provider.embed(text)
+        # If using an external embedding provider (e.g., OpenAI or GroqProvider)
+        if hasattr(embedding_provider, 'embed'):
+            logger.info(f"Embedding text with provider '{embedding_provider_name}'.")
+            embedding_generator = embedding_provider.embed(text)
+        else:
+            # Using FastEmbed
+            logger.info("Embedding text using FastEmbed (local).")
+            embedding_generator = embedding_provider.embed(text)
         
         # Convert the generator to a list and then to a numpy array
         embeddings = list(embedding_generator)
@@ -53,3 +75,4 @@ def fe_embed_text(text: str) -> List[float]:
     except Exception as e:
         logger.error(f"Failed to create embedding for the input: '{text}', error: {e}")
         return []
+

@@ -3,6 +3,8 @@
 provider: groq  # Options: groq, google_gemini
 
 embedding:
+  provider_name: "local"  # or "openai" or "local"
+  api_key: "${EMBEDDING_API_KEY}"  # Optional, if using an API-based provider
   model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 qdrant:

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 class ConfigLoader:
     _instance = None
+    _config = None
 
     def __new__(cls, config_path=None, dotenv_path=None):
         if cls._instance is None:
@@ -14,10 +15,11 @@ class ConfigLoader:
             # Use environment variable paths if available
             config_path = config_path or os.environ.get('CONFIG_PATH', 'config/config.yaml')
             dotenv_path = dotenv_path or os.environ.get('DOTENV_PATH', 'config/.env')
-            cls._instance.load_config(config_path, dotenv_path)
+            cls._instance._load_config(config_path, dotenv_path)
         return cls._instance
 
-    def load_config(self, config_relative_path, dotenv_relative_path):
+    @classmethod
+    def _load_config(cls, config_relative_path, dotenv_relative_path):
         try:
             # Resolve the absolute path dynamically using pathlib
             base_dir = Path(__file__).resolve().parent.parent  # Get the shared_libs directory
@@ -34,8 +36,7 @@ class ConfigLoader:
                 config = yaml.safe_load(file)
 
             # Substitute environment variables in the configuration
-            config = self.substitute_env_vars(config)
-            self.config = config
+            cls._config = cls._substitute_env_vars(config)
             logging.info(f"Configuration loaded successfully from '{config_path}'.")
 
         except FileNotFoundError:
@@ -48,12 +49,13 @@ class ConfigLoader:
             logging.error(f"Unexpected error loading configuration: {e}")
             raise
 
-    def substitute_env_vars(self, obj):
+    @classmethod
+    def _substitute_env_vars(cls, obj):
         # Substitute environment variables
         if isinstance(obj, dict):
-            return {k: self.substitute_env_vars(v) for k, v in obj.items()}
+            return {k: cls._substitute_env_vars(v) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [self.substitute_env_vars(element) for element in obj]
+            return [cls._substitute_env_vars(element) for element in obj]
         elif isinstance(obj, str):
             pattern = re.compile(r'\$\{([^}]+)\}')
             matches = pattern.findall(obj)
@@ -64,32 +66,48 @@ class ConfigLoader:
         else:
             return obj
 
-    def get_config(self):
-        return self.config
+    @classmethod
+    def get_config(cls):
+        if cls._config is None:
+            raise ValueError("Configuration not loaded. Please ensure ConfigLoader is instantiated.")
+        return cls._config
 
-    def get_prompt(self, prompt_name: str) -> str:
+    @classmethod
+    def get_config_value(cls, key: str, default=None):
+        """
+        Retrieve a specific configuration value.
+
+        :param key: Key to retrieve.
+        :param default: Default value to return if the key doesn't exist.
+        :return: The configuration value or default.
+        """
+        return cls._config.get(key, default)
+
+    @classmethod
+    def get_prompt(cls, prompt_name: str) -> str:
         """
         Fetch a prompt template by its name from the loaded config.
 
         :param prompt_name: Name of the prompt to retrieve.
         :return: The prompt template string.
         """
-        prompts = self.config.get('prompts', {})
+        prompts = cls._config.get('prompts', {})
         prompt = prompts.get(prompt_name)
         if not prompt:
             logging.warning(f"Prompt '{prompt_name}' not found in configuration.")
+            return ""
         return prompt
 
-    def get_schema(self, schema_name: str) -> dict:
+    @classmethod
+    def get_schema(cls, schema_name: str) -> dict:
         """
         Fetch a schema by its name from the loaded config.
 
         :param schema_name: Name of the schema to retrieve.
         :return: The schema dictionary.
         """
-        schemas = self.config.get('schemas', {})
+        schemas = cls._config.get('schemas', {})
         schema = schemas.get(schema_name)
         if not schema:
             logging.warning(f"Schema '{schema_name}' not found in configuration.")
         return schema
-

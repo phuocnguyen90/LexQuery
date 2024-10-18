@@ -1,4 +1,4 @@
-# config/schemas/prompts.yaml
+# shared_libs/prompts/prompts.yaml
 
 prompts:
   formatting:
@@ -42,7 +42,7 @@ prompts:
       Applicability:
       Generated Title:
       Suggested Categories:
-  raq_prompt:
+  rag_prompt:
     system_prompt: |    
       Bạn là một trợ lý pháp lý chuyên nghiệp. Dựa trên câu hỏi của người dùng và các kết quả tìm kiếm liên quan từ cơ sở dữ liệu câu hỏi thường gặp của bạn, hãy trả lời câu hỏi và trích dẫn cơ sở pháp lý nếu có trong thông tin được cung cấp.
       Không thêm ý kiến cá nhân; hãy trả lời chi tiết nhất có thể chỉ sử dụng các kết quả tìm kiếm được cung cấp để trả lời.

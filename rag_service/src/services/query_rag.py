@@ -7,32 +7,28 @@ import re
 import time
 
 # Imports from shared_libs
-from shared_libs.providers import get_default_provider, get_groq_provider
+from shared_libs.providers import ProviderFactory  # Use the provider factory to dynamically get providers
 from shared_libs.utils.logger import Logger
 from shared_libs.utils.cache import Cache
-from shared_libs.config_loader import ConfigLoader
-from shared_libs.shared_libs.prompts import get_prompt  # New import for prompts
+from shared_libs.config.config_loader import ConfigLoader
 
-from services.search_qdrant import search_qdrant  
+from .search_qdrant import search_qdrant  
 
 # Load configuration
-config = ConfigLoader.load_config()
+config_loader = ConfigLoader()  # Load config once globally
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load the RAG prompt from shared_libs
-rag_prompt = get_prompt("rag_prompt")
+# Load the RAG prompt from config
+rag_prompt = config_loader.get_prompt("rag_prompt")
 
-# Try to get the default LLM provider based on the configuration, fall back to GroqProvider if necessary
-try:
-    llm_provider = get_default_provider()
-    if not llm_provider:
-        raise ValueError("Default LLM provider is not configured correctly.")
-except Exception as e:
-    logger.warning(f"Failed to load default LLM provider. Falling back to GroqProvider: {str(e)}")
-    llm_provider = get_groq_provider()
+# Load the default provider using ProviderFactory, including fallback logic
+provider_name = config_loader.get_config_value("provider", "groq")
+llm_settings = config_loader.get_config_value(provider_name, {})
+requirements = config_loader.get_config_value("requirements", "")
+llm_provider = ProviderFactory.get_provider(name=provider_name, config=llm_settings, requirements=requirements)
 
 @dataclass
 class QueryResponse:
