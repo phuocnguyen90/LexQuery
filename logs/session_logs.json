@@ -72,5 +72,44 @@
     "details": {
       "query_text": "ch\u1eadm n\u1ed9p thu\u1ebf thu nh\u1eadp doanh nghi\u1ec7p th\u00ec b\u1ecb ph\u1ea1t nh\u01b0 th\u1ebf n\u00e0o?"
     }
+  },
+  {
+    "log_id": "29619215-7070-48f3-99a8-ac84543df9d9",
+    "event_type": "ERROR",
+    "timestamp": 1729098389,
+    "message": "Error in processing query",
+    "details": {
+      "query_text": "ch\u1eadm n\u1ed9p thu\u1ebf thu nh\u1eadp doanh nghi\u1ec7p th\u00ec b\u1ecb ph\u1ea1t nh\u01b0 th\u1ebf n\u00e0o?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "e12225db-0cab-426b-aaa1-09105dfe7840",
+    "event_type": "INFO",
+    "timestamp": 1729098440,
+    "message": "Cache hit",
+    "details": {
+      "query_text": "ch\u1eadm n\u1ed9p thu\u1ebf thu nh\u1eadp doanh nghi\u1ec7p th\u00ec b\u1ecb ph\u1ea1t nh\u01b0 th\u1ebf n\u00e0o?"
+    }
+  },
+  {
+    "log_id": "0db24705-f877-4554-af32-80bb53f5d265",
+    "event_type": "ERROR",
+    "timestamp": 1729098662,
+    "message": "Error in processing query",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "cb120ffa-b2e3-4cd2-ab3c-fc4a0edd2afa",
+    "event_type": "ERROR",
+    "timestamp": 1729099076,
+    "message": "Error in processing query",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
   }
 ]

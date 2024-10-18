@@ -1,4 +1,5 @@
 import boto3
+import json
 from ..rag.query_rag import query_rag
 
 WORKER_LAMBDA_NAME = 'local_worker_lambda'

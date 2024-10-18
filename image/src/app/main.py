@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends
 from providers.groq_provider import GroqProvider
-from rag_app.query_rag import query_rag
+from rag.query_rag import query_rag
 
 # Initialize FastAPI
 app = FastAPI()
