@@ -1,6 +1,10 @@
 # src/services/get_embedding_function.py
 
-from fe_embed import fe_embed_text 
+try:
+    from services.fe_embed import fe_embed_text  # Absolute import for use in production
+except ImportError:
+    from fe_embed import fe_embed_text   # Relative import for direct script testing
+
 
 class FastEmbedWrapper:
     """

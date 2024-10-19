@@ -13,7 +13,6 @@ import subprocess
 from docx import Document
 from docxcompose.composer import Composer
 from dotenv import load_dotenv
-from utils.validation import mask_api_key
 from shared_libs.models.record import Record
 
 # Configure logger

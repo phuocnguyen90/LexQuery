@@ -1,6 +1,6 @@
 import os
 from typing import Dict
-from shared_libs.config_loader import ConfigLoader
+from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.providers import GroqProvider, OpenAIProvider
 
 # Load configuration
@@ -21,7 +21,7 @@ elif provider_name == "openai":
 
 from shared_libs.providers import APIProvider
 from shared_libs.prompts.default_prompts import SYSTEM_PROMPT
-from rag.search_qdrant import search_qdrant
+from search_qdrant import search_qdrant
 
 class RAGPipeline:
     def __init__(self, provider: APIProvider):

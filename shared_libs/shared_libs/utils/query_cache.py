@@ -1,3 +1,4 @@
+#shared_utils/utils/query_cache.py
 import os
 import time
 import logging
@@ -122,3 +123,6 @@ if __name__ == "__main__":
     response = cache.get_cached_response(test_query)
     if response:
         print(f"Retrieved cached response: {response}")
+
+    # Clear the cache
+    cache.clear_cache()

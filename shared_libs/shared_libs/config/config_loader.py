@@ -155,10 +155,21 @@ class ConfigLoader:
         :param prompt_name: Name of the prompt to retrieve.
         :return: The prompt template string.
         """
-        prompt = self.prompts.get(prompt_name)
-        if not prompt:
-            logging.warning(f"Prompt '{prompt_name}' not found in prompts configuration.")
+        keys = prompt_name.split('.')
+        prompt = self.prompts
+
+        # Traverse the nested dictionary using keys
+        for key in keys:
+            if isinstance(prompt, dict) and key in prompt:
+                prompt = prompt[key]
+            else:
+                logging.warning(f"Prompt '{prompt_name}' not found in prompts configuration.")
+                return ""
+
+        if not isinstance(prompt, str):
+            logging.warning(f"Prompt '{prompt_name}' is not a valid string in prompts configuration.")
             return ""
+
         return prompt
 
     def get_schema(self, schema_name: str) -> dict:

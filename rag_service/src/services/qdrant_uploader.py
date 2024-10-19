@@ -6,16 +6,16 @@ from typing import List
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 import shared_libs
-from shared_libs.config_loader import ConfigLoader
+from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.models import Record
 from fe_embed import fe_embed_text  # Import the embedding function
 
 # Load configuration from shared_libs
-config = ConfigLoader.load_config()
+config = ConfigLoader()
 
 # Configure logging using Logger from shared_libs
-logger = Logger.get_logger(__name__)
+logger = Logger(__name__)
 
 # Load Qdrant configuration
 qdrant_config = config.get("qdrant", {})
@@ -44,7 +44,7 @@ def add_record_to_qdrant(record: Record):
         # Use the embedding function to get the embedding
         embedding = fe_embed_text(record.content)
         if not embedding:
-            logger.error(f"Skipping record {record.record_id} due to embedding failure.")
+            logger.log_error(f"Skipping record {record.record_id} due to embedding failure.")
             return
 
         # Use record_id directly as the point ID
@@ -61,9 +61,9 @@ def add_record_to_qdrant(record: Record):
                 )
             ]
         )
-        logger.info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
+        logger.log_info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
     except Exception as e:
-        logger.error(f"Failed to add record {record.record_id} to Qdrant: {e}")
+        logger.log_error(f"Failed to add record {record.record_id} to Qdrant: {e}")
 
 def add_records_to_qdrant(records: List[Record]):
     """
@@ -75,7 +75,7 @@ def add_records_to_qdrant(records: List[Record]):
     for record in records:
         embedding = fe_embed_text(record.content)
         if not embedding:
-            logger.error(f"Skipping record {record.record_id} due to embedding failure.")
+            logger.log_error(f"Skipping record {record.record_id} due to embedding failure.")
             continue
 
         # Generate a separate UUID for Qdrant point ID
@@ -94,6 +94,6 @@ def add_records_to_qdrant(records: List[Record]):
                 collection_name=COLLECTION_NAME,
                 points=points
             )
-            logger.info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
+            logger.log_info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
         except Exception as e:
-            logger.error(f"Failed to add records to Qdrant: {e}")
+            logger.log_error(f"Failed to add records to Qdrant: {e}")

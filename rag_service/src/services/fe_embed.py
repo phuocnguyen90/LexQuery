@@ -10,7 +10,7 @@ from shared_libs.utils.logger import Logger
 
 # Load configuration from shared_libs
 config_loader = ConfigLoader()
-logger = Logger.get_logger(__name__)
+logger = Logger(__name__)
 
 # Load embedding configuration from the global config
 embedding_config = config_loader.get_config_value("embedding", {})
@@ -29,7 +29,7 @@ try:
         raise ValueError("Local embedding will be used.")  # Force fallback to local embedding
 except Exception as e:
     # Fall back to FastEmbed
-    logger.warning(f"Failed to initialize embedding provider '{embedding_provider_name}': {e}. Falling back to FastEmbed.")
+    logger.log_warning(f"Failed to initialize embedding provider '{embedding_provider_name}': {e}. Falling back to FastEmbed.")
     embedding_provider = fastembed.TextEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 
@@ -43,17 +43,17 @@ def fe_embed_text(text: str) -> List[float]:
     try:
         # If using an external embedding provider (e.g., OpenAI or GroqProvider)
         if hasattr(embedding_provider, 'embed'):
-            logger.info(f"Embedding text with provider '{embedding_provider_name}'.")
+            logger.log_info(f"Embedding text with provider '{embedding_provider_name}'.")
             embedding_generator = embedding_provider.embed(text)
         else:
             # Using FastEmbed
-            logger.info("Embedding text using FastEmbed (local).")
+            logger.log_info("Embedding text using FastEmbed (local).")
             embedding_generator = embedding_provider.embed(text)
         
         # Convert the generator to a list and then to a numpy array
         embeddings = list(embedding_generator)
         if not embeddings:
-            logger.error(f"No embeddings returned for text '{text}'.")
+            logger.log_error(f"No embeddings returned for text '{text}'.")
             return []
 
         embedding = np.array(embeddings)
@@ -64,15 +64,15 @@ def fe_embed_text(text: str) -> List[float]:
 
         # Ensure that the embedding is a flat array
         if embedding.ndim != 1:
-            logger.error(f"Embedding for text '{text}' is not a flat array. Got shape: {embedding.shape}")
+            logger.log_error(f"Embedding for text '{text}' is not a flat array. Got shape: {embedding.shape}")
             return []
 
         # Log embedding norm for debugging
         embedding_norm = np.linalg.norm(embedding)
-        logger.debug(f"Embedding norm for text '{text}': {embedding_norm}")
+        logger.log_debug(f"Embedding norm for text '{text}': {embedding_norm}")
 
         return embedding.tolist()
     except Exception as e:
-        logger.error(f"Failed to create embedding for the input: '{text}', error: {e}")
+        logger.log_error(f"Failed to create embedding for the input: '{text}', error: {e}")
         return []
 

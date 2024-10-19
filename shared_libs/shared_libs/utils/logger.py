@@ -31,6 +31,8 @@ log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(messa
 
 
 class Logger:
+    def __init__(self, name: str):
+        self.logger = self.get_logger(name)
     @staticmethod
     def get_logger(name: str) -> logging.Logger:
         """
@@ -70,8 +72,7 @@ class Logger:
 
         return logger
 
-    @staticmethod
-    def log_event(event_type, message, details=None):
+    def log_event(self, event_type, message, details=None):
         """Log an event to DynamoDB or local log file based on the environment."""
         log_entry = {
             "log_id": str(uuid.uuid4()),
@@ -86,29 +87,26 @@ class Logger:
             try:
                 table = dynamodb.Table(LOG_TABLE_NAME)
                 table.put_item(Item=log_entry)
-                logging.getLogger(__name__).info(f"Log entry created in DynamoDB: {log_entry['log_id']}")
+                self.logger.info(f"Log entry created in DynamoDB: {log_entry['log_id']}")
             except ClientError as e:
-                logging.getLogger(__name__).error(f"Failed to log event to DynamoDB: {e.response['Error']['Message']}")
+                self.logger.error(f"Failed to log event to DynamoDB: {e.response['Error']['Message']}")
         else:
             # Log locally in development mode
             try:
-                # Load existing local logs if available
                 if LOCAL_LOG_FILE.exists():
                     with LOCAL_LOG_FILE.open('r', encoding='utf-8') as f:
                         log_data = json.load(f)
                 else:
                     log_data = []
 
-                # Append the new log entry
                 log_data.append(log_entry)
 
-                # Write updated log data back to the local file
                 with LOCAL_LOG_FILE.open('w', encoding='utf-8') as f:
                     json.dump(log_data, f, indent=2)
 
-                logging.getLogger(__name__).info(f"Log entry saved locally: {log_entry['log_id']}")
+                self.logger.info(f"Log entry saved locally: {log_entry['log_id']}")
             except Exception as e:
-                logging.getLogger(__name__).error(f"Failed to log event locally: {str(e)}")
+                self.logger.error(f"Failed to log event locally: {str(e)}")
 
     @staticmethod
     def save_logs_to_s3():
@@ -131,13 +129,18 @@ class Logger:
         else:
             logging.getLogger(__name__).info("Skipping S3 upload since the environment is not production.")
 
-    @staticmethod
-    def log_info(message, details=None):
+    def log_info(self, message, details=None):
         """Helper method to log an info event."""
-        Logger.log_event(event_type="INFO", message=message, details=details)
+        self.log_event(event_type="INFO", message=message, details=details)
 
-    @staticmethod
-    def log_error(message, details=None):
+    def log_error(self, message, details=None):
         """Helper method to log an error event."""
-        Logger.log_event(event_type="ERROR", message=message, details=details)
+        self.log_event(event_type="ERROR", message=message, details=details)
 
+    def log_debug(self, message, details=None):
+        """Helper method to log a debug event."""
+        self.log_event(event_type="DEBUG", message=message, details=details)
+
+    def log_warning(self, message, details=None):
+        """Helper method to log a warning event."""
+        self.log_event(event_type="WARNING", message=message, details=details)
