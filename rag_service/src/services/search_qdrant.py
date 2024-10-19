@@ -1,21 +1,64 @@
-# src/rag_app/search_qdrant.py
+# src/services/search_qdrant.py
 
-from typing import List, Dict
-from qdrant_client import QdrantClient
 
-import os
 import logging
+from qdrant_client import QdrantClient
+from time import sleep
+from shared_libs.config.config_loader import ConfigLoader
+from typing import List, Dict, Any
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-# Initialize Qdrant Client
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")  # Replace with your Qdrant URL
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")  # Replace with your Qdrant API Key if any
-COLLECTION_NAME = "legal_qa"
+# Console Handler with UTF-8 Encoding to avoid UnicodeEncodeError
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+logger.addHandler(console_handler)
 
-qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+# Load configuration using ConfigLoader
+config_loader = ConfigLoader()
+qdrant_config = config_loader.get_config_value('qdrant', {})
+
+QDRANT_URL = qdrant_config.get("url")
+QDRANT_API_KEY = qdrant_config.get("api_key", "")
+COLLECTION_NAME='legal_qa'
+
+# Ensure environment variables are set properly
+if not QDRANT_URL:
+    logger.error("Environment variable QDRANT_URL is not set. Exiting.")
+    raise EnvironmentError("QDRANT_URL is not set in the environment.")
+
+# Initialize Qdrant Client with retry mechanism
+try:
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            qdrant_client = QdrantClient(
+                url=QDRANT_URL,
+                api_key=QDRANT_API_KEY,
+                prefer_grpc=True,
+                https=True
+            )
+            logger.info(f"Successfully initialized Qdrant client at: {QDRANT_URL}")
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Failed to initialize Qdrant client, retrying ({attempt + 1}/{max_retries})...")
+                sleep(2)
+            else:
+                logger.error(f"Failed to initialize Qdrant client after {max_retries} attempts: {e}")
+                raise e
+except Exception as final_error:
+    logger.error(f"Final failure to initialize Qdrant client: {final_error}")
+    raise
+
+# Import the embedding function from existing services
+from get_embedding_function import get_embedding_function
+
+# Load the embedding function, which can be FastEmbedWrapper or an external provider
+embed_function_wrapper = get_embedding_function()
 
 def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     """
@@ -25,22 +68,26 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     :param top_k: Number of top similar documents to retrieve.
     :return: List of dictionaries containing 'record_id', 'source', and 'content'.
     """
-    from get_embedding_function import get_embedding_function  
-
-    embed_func = get_embedding_function()
-
-    # Depending on Option 1 or 2 in get_embedding_function.py
-    if hasattr(embed_func, 'embed'):
-        # If using the wrapper class
-        query_embedding = embed_func.embed(query)
-    else:
-        # If using the standalone function
-        query_embedding = embed_func(query)
-
-    if not query_embedding:
-        logger.error("Failed to generate embedding for the query.")
+    if not embed_function_wrapper:
+        logger.error("Embedding function wrapper is not properly initialized.")
         return []
 
+    # Step 1: Generate the embedding for the query text
+    try:
+        # Using the `embed()` method of `FastEmbedWrapper` to generate embeddings
+        if hasattr(embed_function_wrapper, 'embed'):
+            query_embedding = embed_function_wrapper.embed(query)
+        else:
+            raise ValueError("Invalid embedding function wrapper. Must have an 'embed()' method.")
+    except Exception as e:
+        logger.error(f"Failed to generate embedding for the query '{query}': {e}")
+        return []
+
+    if not query_embedding:
+        logger.error("No embedding returned for the query.")
+        return []
+
+    # Step 2: Search in Qdrant
     try:
         search_result = qdrant_client.search(
             collection_name=COLLECTION_NAME,
@@ -62,3 +109,15 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     except Exception as e:
         logger.error(f"Error during Qdrant search: {e}")
         return []
+
+if __name__ == "__main__":
+    from shared_libs.config.config_loader import ConfigLoader
+    config=ConfigLoader()
+    # Test the search function locally
+    sample_query = "Quy trình đăng ký doanh nghiệp tại Việt Nam là gì?"
+    results = search_qdrant(sample_query, top_k=3)
+    for idx, result in enumerate(results, 1):
+        print(f"Result {idx}:")
+        print(f"Record ID: {result['record_id']}")
+        print(f"Source: {result['source']}")
+        print(f"Content: {result['content']}\n")

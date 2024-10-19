@@ -1,3 +1,5 @@
+# shared_libs/config/config_loader.py
+
 from pathlib import Path
 import yaml
 import logging
@@ -7,36 +9,52 @@ from dotenv import load_dotenv
 
 class ConfigLoader:
     _instance = None
-    _config = None
 
-    def __new__(cls, config_path=None, dotenv_path=None):
+    def __new__(cls, config_path=None, dotenv_path=None, prompts_path=None, schemas_path=None):
         if cls._instance is None:
             cls._instance = super(ConfigLoader, cls).__new__(cls)
-            # Use environment variable paths if available
+
+            # Default paths if not provided
             config_path = config_path or os.environ.get('CONFIG_PATH', 'config/config.yaml')
             dotenv_path = dotenv_path or os.environ.get('DOTENV_PATH', 'config/.env')
-            cls._instance._load_config(config_path, dotenv_path)
+            prompts_path = prompts_path or os.environ.get('PROMPTS_PATH', 'prompts/prompts.yaml')
+            schemas_path = schemas_path or os.environ.get('SCHEMAS_PATH', 'schemas/')
+
+            # Load environment variables, configuration, prompts, and schemas
+            cls._instance._load_environment_variables(dotenv_path)
+            cls._instance._load_config(config_path)
+            cls._instance._load_prompts(prompts_path)
+            cls._instance._load_schemas(schemas_path)
+            
         return cls._instance
 
-    @classmethod
-    def _load_config(cls, config_relative_path, dotenv_relative_path):
+    def _load_environment_variables(self, dotenv_relative_path):
         try:
-            # Resolve the absolute path dynamically using pathlib
-            base_dir = Path(__file__).resolve().parent.parent  # Get the shared_libs directory
-            config_path = base_dir / config_relative_path
+            base_dir = Path(__file__).resolve().parent.parent
             dotenv_path = base_dir / dotenv_relative_path
 
             # Load environment variables if .env exists
             if dotenv_path.exists():
                 load_dotenv(dotenv_path)
                 logging.info(f"Loaded environment variables from '{dotenv_path}'.")
+            else:
+                logging.warning(f".env file not found at '{dotenv_path}'")
+        except Exception as e:
+            logging.error(f"Unexpected error loading environment variables: {e}")
+            raise
+
+    def _load_config(self, config_relative_path):
+        try:
+            # Resolve the absolute path dynamically using pathlib
+            base_dir = Path(__file__).resolve().parent.parent
+            config_path = base_dir / config_relative_path
 
             # Load YAML configuration file
             with config_path.open('r', encoding='utf-8') as file:
                 config = yaml.safe_load(file)
 
             # Substitute environment variables in the configuration
-            cls._config = cls._substitute_env_vars(config)
+            self.config = self._substitute_env_vars(config)
             logging.info(f"Configuration loaded successfully from '{config_path}'.")
 
         except FileNotFoundError:
@@ -49,65 +67,108 @@ class ConfigLoader:
             logging.error(f"Unexpected error loading configuration: {e}")
             raise
 
-    @classmethod
-    def _substitute_env_vars(cls, obj):
-        # Substitute environment variables
+    def _load_prompts(self, prompts_relative_path):
+        try:
+            # Resolve the absolute path dynamically using pathlib
+            base_dir = Path(__file__).resolve().parent.parent
+            prompts_path = base_dir / prompts_relative_path
+
+            # Load YAML prompts file
+            with prompts_path.open('r', encoding='utf-8') as file:
+                prompts = yaml.safe_load(file)
+
+            # Store prompts as part of the instance
+            self.prompts = self._substitute_env_vars(prompts)
+            logging.info(f"Prompts loaded successfully from '{prompts_path}'.")
+
+        except FileNotFoundError:
+            logging.error(f"Prompts file '{prompts_path}' not found.")
+            raise
+        except yaml.YAMLError as ye:
+            logging.error(f"YAML parsing error in '{prompts_path}': {ye}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error loading prompts: {e}")
+            raise
+
+    def _load_schemas(self, schemas_relative_path):
+        try:
+            base_dir = Path(__file__).resolve().parent.parent
+            schemas_dir = base_dir / schemas_relative_path
+
+            # Load all YAML files from the schemas directory
+            schemas = {}
+            for schema_file in schemas_dir.glob("*.yaml"):
+                with schema_file.open('r', encoding='utf-8') as file:
+                    schema_content = yaml.safe_load(file)
+                    schema_name = schema_file.stem
+                    schemas[schema_name] = self._substitute_env_vars(schema_content)
+
+            # Store schemas as part of the instance
+            self.schemas = schemas
+            logging.info(f"Schemas loaded successfully from '{schemas_dir}'.")
+
+        except FileNotFoundError:
+            logging.error(f"Schemas directory '{schemas_relative_path}' not found.")
+            raise
+        except yaml.YAMLError as ye:
+            logging.error(f"YAML parsing error in one of the schemas: {ye}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error loading schemas: {e}")
+            raise
+
+    def _substitute_env_vars(self, obj):
         if isinstance(obj, dict):
-            return {k: cls._substitute_env_vars(v) for k, v in obj.items()}
+            return {k: self._substitute_env_vars(v) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [cls._substitute_env_vars(element) for element in obj]
+            return [self._substitute_env_vars(element) for element in obj]
         elif isinstance(obj, str):
             pattern = re.compile(r'\$\{([^}]+)\}')
             matches = pattern.findall(obj)
             for var in matches:
-                env_value = os.environ.get(var, "")
+                env_value = os.getenv(var, "")
+                if not env_value:
+                    logging.warning(f"Environment variable '{var}' not found. Using empty string as a fallback.")
                 obj = obj.replace(f"${{{var}}}", env_value)
             return obj
         else:
             return obj
 
-    @classmethod
-    def get_config(cls):
-        if cls._config is None:
-            raise ValueError("Configuration not loaded. Please ensure ConfigLoader is instantiated.")
-        return cls._config
+    def get_config(self):
+        return self.config
 
-    @classmethod
-    def get_config_value(cls, key: str, default=None):
-        """
-        Retrieve a specific configuration value.
+    def get_config_value(self, key: str, default=None):
+        keys = key.split('.')
+        value = self.config
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        return value
 
-        :param key: Key to retrieve.
-        :param default: Default value to return if the key doesn't exist.
-        :return: The configuration value or default.
+    def get_prompt(self, prompt_name: str) -> str:
         """
-        return cls._config.get(key, default)
-
-    @classmethod
-    def get_prompt(cls, prompt_name: str) -> str:
-        """
-        Fetch a prompt template by its name from the loaded config.
+        Fetch a prompt template by its name from the loaded prompts.
 
         :param prompt_name: Name of the prompt to retrieve.
         :return: The prompt template string.
         """
-        prompts = cls._config.get('prompts', {})
-        prompt = prompts.get(prompt_name)
+        prompt = self.prompts.get(prompt_name)
         if not prompt:
-            logging.warning(f"Prompt '{prompt_name}' not found in configuration.")
+            logging.warning(f"Prompt '{prompt_name}' not found in prompts configuration.")
             return ""
         return prompt
 
-    @classmethod
-    def get_schema(cls, schema_name: str) -> dict:
+    def get_schema(self, schema_name: str) -> dict:
         """
-        Fetch a schema by its name from the loaded config.
+        Fetch a schema by its name from the loaded schemas.
 
         :param schema_name: Name of the schema to retrieve.
         :return: The schema dictionary.
         """
-        schemas = cls._config.get('schemas', {})
-        schema = schemas.get(schema_name)
+        schema = self.schemas.get(schema_name)
         if not schema:
-            logging.warning(f"Schema '{schema_name}' not found in configuration.")
+            logging.warning(f"Schema '{schema_name}' not found in schemas configuration.")
         return schema

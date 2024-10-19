@@ -1,0 +1,28 @@
+[
+  {
+    "log_id": "b3585034-64fb-4afd-9ce5-47be13f27f79",
+    "event_type": "INFO",
+    "timestamp": 1729273661,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "c5f7450d-6113-42f4-a0be-ffb4ed48b6d6",
+    "event_type": "INFO",
+    "timestamp": 1729273661,
+    "message": "No cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "1b1f44a0-435f-44dc-bfbc-ea3945f4f907",
+    "event_type": "ERROR",
+    "timestamp": 1729273661,
+    "message": "Error during RAG processing",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "No module named 'get_embedding_function'"
+    }
+  }
+]

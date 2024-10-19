@@ -12,7 +12,7 @@ from shared_libs.utils.logger import Logger
 from shared_libs.utils.cache import Cache
 from shared_libs.config.config_loader import ConfigLoader
 
-from .search_qdrant import search_qdrant  
+from search_qdrant import search_qdrant  
 
 # Load configuration
 config_loader = ConfigLoader()  # Load config once globally
