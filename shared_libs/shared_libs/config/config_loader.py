@@ -6,6 +6,8 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
+from shared_libs.utils.aws_auth_validation import ensure_dynamodb_table_exists, ensure_s3_bucket_exists
+
 
 class ConfigLoader:
     _instance = None
@@ -20,12 +22,21 @@ class ConfigLoader:
             prompts_path = prompts_path or os.environ.get('PROMPTS_PATH', 'prompts/prompts.yaml')
             schemas_path = schemas_path or os.environ.get('SCHEMAS_PATH', 'schemas/')
 
+
             # Load environment variables, configuration, prompts, and schemas
             cls._instance._load_environment_variables(dotenv_path)
             cls._instance._load_config(config_path)
             cls._instance._load_prompts(prompts_path)
             cls._instance._load_schemas(schemas_path)
             
+            DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
+            if DEVELOPMENT_MODE:
+                pass
+            else:                
+                # Validate AWS resources before proceeding with the rest of the configuration
+                ensure_dynamodb_table_exists(os.getenv('CACHE_TABLE_NAME', 'CacheTable'))
+                ensure_dynamodb_table_exists(os.getenv('LOG_TABLE_NAME', 'LogTable'))
+                ensure_s3_bucket_exists()
         return cls._instance
 
     def _load_environment_variables(self, dotenv_relative_path):

@@ -27,7 +27,7 @@ COLLECTION_NAME = 'legal_qa'
 
 # Ensure environment variables are set properly
 if not QDRANT_URL:
-    logger.log_error("Environment variable QDRANT_URL is not set. Exiting.")
+    logger.error("Environment variable QDRANT_URL is not set. Exiting.")
     raise EnvironmentError("QDRANT_URL is not set in the environment.")
 
 # Initialize Qdrant Client with retry mechanism
@@ -41,17 +41,17 @@ try:
                 prefer_grpc=True,
                 https=True
             )
-            logger.log_info(f"Successfully initialized Qdrant client at: {QDRANT_URL}")
+            logger.info(f"Successfully initialized Qdrant client at: {QDRANT_URL}")
             break
         except Exception as e:
             if attempt < max_retries - 1:
                 logger.log_warning(f"Failed to initialize Qdrant client, retrying ({attempt + 1}/{max_retries})...")
                 sleep(2)
             else:
-                logger.log_error(f"Failed to initialize Qdrant client after {max_retries} attempts: {e}")
+                logger.error(f"Failed to initialize Qdrant client after {max_retries} attempts: {e}")
                 raise e
 except Exception as final_error:
-    logger.log_error(f"Final failure to initialize Qdrant client: {final_error}")
+    logger.error(f"Final failure to initialize Qdrant client: {final_error}")
     raise
 
 
@@ -68,28 +68,28 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     :return: List of dictionaries containing 'record_id', 'source', and 'content'.
     """
     if not embed_function_wrapper:
-        logger.log_error("Embedding function wrapper is not properly initialized.")
+        logger.error("Embedding function wrapper is not properly initialized.")
         return []
 
     # Step 1: Generate the embedding for the query text
     try:
         # Using the `embed()` method of `FastEmbedWrapper` to generate embeddings
         if hasattr(embed_function_wrapper, 'embed'):
-            logger.log_info(f"Generating embedding for query: '{query}'")
+            logger.info(f"Generating embedding for query: '{query}'")
             query_embedding = embed_function_wrapper.embed(query)
         else:
             raise ValueError("Invalid embedding function wrapper. Must have an 'embed()' method.")
     except Exception as e:
-        logger.log_error(f"Failed to generate embedding for the query '{query}': {e}")
+        logger.error(f"Failed to generate embedding for the query '{query}': {e}")
         return []
 
     if not query_embedding:
-        logger.log_error("No embedding returned for the query.")
+        logger.error("No embedding returned for the query.")
         return []
 
     # Step 2: Search in Qdrant
     try:
-        logger.log_info(f"Searching Qdrant for top {top_k} documents related to query: '{query}'")
+        logger.info(f"Searching Qdrant for top {top_k} documents related to query: '{query}'")
         search_result = qdrant_client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_embedding,
@@ -107,13 +107,13 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
             })
 
         if results:
-            logger.log_info(f"Found {len(results)} documents for query: '{query}'")
+            logger.info(f"Found {len(results)} documents for query: '{query}'")
         else:
             logger.log_warning(f"No documents found for query: '{query}'")
 
         return results
     except Exception as e:
-        logger.log_error(f"Error during Qdrant search: {e}")
+        logger.error(f"Error during Qdrant search: {e}")
         return []
 
 if __name__ == "__main__":

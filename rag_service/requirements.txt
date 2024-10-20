@@ -24,3 +24,4 @@ qdrant_client
 Requests
 scikit_learn
 tqdm
+uvicorn

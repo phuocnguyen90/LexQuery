@@ -43,17 +43,17 @@ def fe_embed_text(text: str) -> List[float]:
     try:
         # If using an external embedding provider (e.g., OpenAI or GroqProvider)
         if hasattr(embedding_provider, 'embed'):
-            logger.log_info(f"Embedding text with provider '{embedding_provider_name}'.")
+            logger.info(f"Embedding text with provider '{embedding_provider_name}'.")
             embedding_generator = embedding_provider.embed(text)
         else:
             # Using FastEmbed
-            logger.log_info("Embedding text using FastEmbed (local).")
+            logger.info("Embedding text using FastEmbed (local).")
             embedding_generator = embedding_provider.embed(text)
         
         # Convert the generator to a list and then to a numpy array
         embeddings = list(embedding_generator)
         if not embeddings:
-            logger.log_error(f"No embeddings returned for text '{text}'.")
+            logger.error(f"No embeddings returned for text '{text}'.")
             return []
 
         embedding = np.array(embeddings)
@@ -64,15 +64,15 @@ def fe_embed_text(text: str) -> List[float]:
 
         # Ensure that the embedding is a flat array
         if embedding.ndim != 1:
-            logger.log_error(f"Embedding for text '{text}' is not a flat array. Got shape: {embedding.shape}")
+            logger.error(f"Embedding for text '{text}' is not a flat array. Got shape: {embedding.shape}")
             return []
 
         # Log embedding norm for debugging
         embedding_norm = np.linalg.norm(embedding)
-        logger.log_debug(f"Embedding norm for text '{text}': {embedding_norm}")
+        logger.debug(f"Embedding norm for text '{text}': {embedding_norm}")
 
         return embedding.tolist()
     except Exception as e:
-        logger.log_error(f"Failed to create embedding for the input: '{text}', error: {e}")
+        logger.error(f"Failed to create embedding for the input: '{text}', error: {e}")
         return []
 

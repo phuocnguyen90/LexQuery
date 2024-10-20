@@ -45,7 +45,7 @@ def index():
 
 @app.get("/get_query")
 def get_query_endpoint(query_id: str):
-    logger.log_info(f"Fetching query with ID: {query_id}")
+    logger.info(f"Fetching query with ID: {query_id}")
     query = QueryModel.get_item(query_id)
     if query:
         return query
@@ -54,42 +54,47 @@ def get_query_endpoint(query_id: str):
 
 @app.post("/submit_query")
 def submit_query_endpoint(request: SubmitQueryRequest):
-    query_text = request.query_text
-    logger.log_info(f"Received submit query request: {query_text}")
+    try:
+        query_text = request.query_text
+        logger.info(f"Received submit query request: {query_text}")
 
-    # Check the cache first
-    cached_response = Cache.get(query_text)
-    if cached_response:
-        logger.log_info(f"Cache hit for query: {query_text}")
-        return cached_response
+        # Check the cache first
+        cached_response = Cache.get(query_text)
+        if cached_response:
+            logger.info(f"Cache hit for query: {query_text}")
+            return cached_response
 
-    # Create a new QueryModel item
-    new_query = QueryModel(query_text=query_text)
+        # Create a new QueryModel item
+        new_query = QueryModel(query_text=query_text)
+        logger.debug(f"Created new QueryModel: {new_query.dict()}")
 
-    if WORKER_LAMBDA_NAME:
-        # Make an async call to the worker Lambda
-        try:
-            new_query.put_item()  # Save initial query item to the database
-            invoke_worker(new_query)
-            logger.log_info("Worker Lambda invoked asynchronously")
-        except Exception as e:
-            logger.log_error(f"Error invoking worker Lambda: {str(e)}")
-            raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda")
-    else:
-        # Handle the RAG processing directly (useful for local development)
-        logger.log_info("Processing query locally")
-        query_response = query_rag(query_text, llm_provider)  # Use the LLM provider loaded from the utility
-        new_query.answer_text = query_response.response_text
-        new_query.sources = query_response.sources
-        new_query.is_complete = True
-        new_query.put_item()
+        if WORKER_LAMBDA_NAME:
+            # Make an async call to the worker Lambda
+            try:
+                new_query.put_item()  # Save initial query item to the database
+                invoke_worker(new_query)
+                logger.info("Worker Lambda invoked asynchronously")
+            except Exception as e:
+                logger.error(f"Error invoking worker Lambda: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda")
+        else:
+            # Handle the RAG processing directly (useful for local development)
+            logger.info("Processing query locally")
+            query_response = query_rag(query_text, llm_provider)  # Use the LLM provider loaded from the utility
+            new_query.answer_text = query_response.response_text
+            new_query.sources = query_response.sources
+            new_query.is_complete = True
+            new_query.put_item()
 
-        # Cache the response for future queries
-        response_data = new_query.dict()
-        Cache.set(query_text, response_data)
-        logger.log_info("Query processed and cached locally")
+            # Cache the response for future queries
+            response_data = new_query.dict()
+            Cache.set(query_text, response_data)
+            logger.info("Query processed and cached locally")
 
-    return new_query.dict()  # Return a dictionary to ensure compatibility with FastAPI response format
+        return new_query.dict()  # Return a dictionary to ensure compatibility with FastAPI response format
+    except Exception as exc:
+        logger.error(f"Failed to handle submit_query endpoint: {str(exc)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 def invoke_worker(query: QueryModel):
     # Initialize the Lambda client
@@ -105,16 +110,16 @@ def invoke_worker(query: QueryModel):
             InvocationType="Event",
             Payload=json.dumps(payload),
         )
-        logger.log_info("Worker Lambda invoked")
+        logger.info("Worker Lambda invoked")
     except Exception as e:
-        logger.log_error(f"Failed to invoke worker Lambda: {str(e)}")
+        logger.error(f"Failed to invoke worker Lambda: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda")
 
 # Local Development Function to Test API Endpoints
 if __name__ == "__main__":
     # For local development testing
     port = 8000
-    logger.log_info(f"Running the FastAPI server on port {port}.")
+    logger.info(f"Running the FastAPI server on port {port}.")
     uvicorn.run("handlers.api_handler:app", host="127.0.0.1", port=port)
 
 # Add a local testing endpoint for convenience
@@ -125,12 +130,12 @@ def local_test_submit_query(request: SubmitQueryRequest):
     and get an immediate response without relying on the worker Lambda.
     """
     query_text = request.query_text
-    logger.log_info("Local testing endpoint called")
+    logger.info("Local testing endpoint called")
 
     # Check the cache for the query
     cached_response = Cache.get(query_text)
     if cached_response:
-        logger.log_info("Cache hit during local testing")
+        logger.info("Cache hit during local testing")
         return cached_response
 
     # Process the query using RAG (local)
@@ -143,6 +148,6 @@ def local_test_submit_query(request: SubmitQueryRequest):
 
     # Store response in cache
     Cache.set(query_text, response_data)
-    logger.log_info("Query processed and cached during local testing")
+    logger.info("Query processed and cached during local testing")
 
     return response_data

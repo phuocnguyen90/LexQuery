@@ -31,14 +31,14 @@ def handler(event, context):
     try:
         # Create QueryModel instance from incoming event
         query_item = QueryModel(**event)
-        logger.log_info("Received query", {"query_text": query_item.query_text})
+        logger.info("Received query", {"query_text": query_item.query_text})
 
         # Invoke RAG process for the query
         response = invoke_rag(query_item)
 
         return response.dict()
     except Exception as e:
-        logger.log_error("Failed to process the query", {"error": str(e), "event": event})
+        logger.error("Failed to process the query", {"error": str(e), "event": event})
         raise e
 
 def invoke_rag(query_item: QueryModel):
@@ -52,10 +52,10 @@ def invoke_rag(query_item: QueryModel):
         # Step 1: Check Cache for Existing Response
         cached_response = Cache.get(query_item.query_text)
         if cached_response:
-            logger.log_info("Cache hit for query", {"query_text": query_item.query_text})
+            logger.info("Cache hit for query", {"query_text": query_item.query_text})
             # Check if response_text is valid in cache
             if cached_response.get("response_text"):
-                logger.log_info("Returning cached response", {"query_text": query_item.query_text})
+                logger.info("Returning cached response", {"query_text": query_item.query_text})
                 return QueryModel(**cached_response)
             else:
                 logger.log_warning("Cache hit but response_text is missing. Proceeding to generate a new response.", {"query_text": query_item.query_text})
@@ -74,25 +74,25 @@ def invoke_rag(query_item: QueryModel):
             cache_data = query_item.dict()
             cache_data["timestamp"] = int(time.time())  # Add a timestamp for TTL tracking
             Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
-            logger.log_info("Cached response for future use", {"query_text": query_item.query_text})
+            logger.info("Cached response for future use", {"query_text": query_item.query_text})
         else:
             logger.log_warning("Incomplete response, not caching", {"query_text": query_item.query_text})
 
         # Step 5: Store result in DynamoDB (only if processing is complete)
         query_item.put_item()
-        logger.log_info("Query processed and stored successfully", {"query_text": query_item.query_text})
+        logger.info("Query processed and stored successfully", {"query_text": query_item.query_text})
 
         return query_item
 
     except Exception as e:
-        logger.log_error("Error during RAG processing", {"query_text": query_item.query_text, "error": str(e)})
+        logger.error("Error during RAG processing", {"query_text": query_item.query_text, "error": str(e)})
         raise e
 
 def main():
     """
     For local testing.
     """
-    logger.log_info("Running example RAG call.")
+    logger.info("Running example RAG call.")
     query_item = QueryModel(
         query_text="thủ tục thay đổi người đại diện theo pháp luật của doanh nghiệp?"
     )

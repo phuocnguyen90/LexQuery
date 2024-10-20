@@ -5,20 +5,19 @@ import logging
 from glob import glob
 
 
-from logging_setup import setup_logging
-from shared_libs.utils.depreciated.load_config import load_config
+from logger import Logger
+from shared_libs.config.config_loader import ConfigLoader
 
 # Configure logger
 try:
-    config = load_config('config/config.yaml')
+    config = ConfigLoader()
 except Exception as e:
     print(f"Failed to load configuration: {e}")
     
 
 # Load the logger
-
-setup_logging(config.get("processing").get("log_file"),level="INFO")    
-logger = logging.getLogger(__name__)
+ 
+logger = Logger(__name__)
 
 # ----------------------------
 # Configuration

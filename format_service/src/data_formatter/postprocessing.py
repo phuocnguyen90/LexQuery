@@ -73,7 +73,7 @@ class PostProcessor:
                 score = calculate_matching_score(doc, mention, issue_date)
                 if score > best_score:
                     best_score = score
-                    best_doc_id = doc['id']  # Adjust based on your CSV column names
+                    best_doc_id = doc['id'] 
                     best_file_name = doc['file_name']  # Adjust based on your CSV column names
 
         return best_doc_id, best_file_name, best_score

@@ -18,7 +18,7 @@ DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True").lower() == "true"
 if not DEVELOPMENT_MODE:
     dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
     s3 = boto3.client("s3", region_name=AWS_REGION)
-    S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "your-log-bucket")
+    S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
 
 # Local log file setup for Development Environment
 LOG_DIR = Path("logs")
@@ -129,18 +129,18 @@ class Logger:
         else:
             logging.getLogger(__name__).info("Skipping S3 upload since the environment is not production.")
 
-    def log_info(self, message, details=None):
+    def info(self, message, details=None):
         """Helper method to log an info event."""
         self.log_event(event_type="INFO", message=message, details=details)
 
-    def log_error(self, message, details=None):
+    def error(self, message, details=None):
         """Helper method to log an error event."""
         self.log_event(event_type="ERROR", message=message, details=details)
 
-    def log_debug(self, message, details=None):
+    def debug(self, message, details=None):
         """Helper method to log a debug event."""
         self.log_event(event_type="DEBUG", message=message, details=details)
 
-    def log_warning(self, message, details=None):
+    def warning(self, message, details=None):
         """Helper method to log a warning event."""
         self.log_event(event_type="WARNING", message=message, details=details)

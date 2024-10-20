@@ -14,9 +14,9 @@ REDIS_DB = int(os.getenv("REDIS_DB", 0))
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
 
 # DynamoDB and S3 Configuration
-DYNAMODB_TABLE_NAME = os.getenv("DYNAMODB_TABLE_NAME", "YourCacheTableName")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "your-s3-bucket-name")
-
+DYNAMODB_TABLE_NAME = os.getenv("DYNAMODB_TABLE_NAME", "CacheTable")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
+AWS_REGION=os.getenv("AWS_REGION", "us-east-1")
 # Initialize Redis connection if in development mode
 cache_client = None
 if DEVELOPMENT_MODE:
@@ -25,65 +25,6 @@ if DEVELOPMENT_MODE:
 # Initialize DynamoDB and S3 clients
 dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
-
-# Ensure the DynamoDB Table and S3 Bucket are created
-def ensure_dynamodb_table_exists():
-    try:
-        table = dynamodb.Table(DYNAMODB_TABLE_NAME)
-        table.load()  # This will trigger a resource load and fail if the table does not exist
-        print(f"DynamoDB table '{DYNAMODB_TABLE_NAME}' already exists.")
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'ResourceNotFoundException':
-            print(f"DynamoDB table '{DYNAMODB_TABLE_NAME}' not found. Creating a new one.")
-            try:
-                table = dynamodb.create_table(
-                    TableName=DYNAMODB_TABLE_NAME,
-                    KeySchema=[
-                        {
-                            'AttributeName': 'cache_key',
-                            'KeyType': 'HASH'  # Partition key
-                        }
-                    ],
-                    AttributeDefinitions=[
-                        {
-                            'AttributeName': 'cache_key',
-                            'AttributeType': 'S'  # String type
-                        }
-                    ],
-                    BillingMode='PAY_PER_REQUEST'  # Use on-demand billing
-                )
-                table.wait_until_exists()  # Wait until the table is created
-                print(f"DynamoDB table '{DYNAMODB_TABLE_NAME}' created successfully.")
-            except ClientError as create_error:
-                print(f"Failed to create DynamoDB table '{DYNAMODB_TABLE_NAME}': {create_error}")
-        else:
-            print(f"Unexpected error while accessing DynamoDB: {e}")
-
-def ensure_s3_bucket_exists():
-    try:
-        # Check if the bucket exists by attempting to access its location
-        s3.head_bucket(Bucket=S3_BUCKET_NAME)
-        print(f"S3 bucket '{S3_BUCKET_NAME}' already exists.")
-    except ClientError as e:
-        error_code = int(e.response['Error']['Code'])
-        if error_code == 404:
-            print(f"S3 bucket '{S3_BUCKET_NAME}' not found. Creating a new one.")
-            try:
-                s3.create_bucket(
-                    Bucket=S3_BUCKET_NAME,
-                    CreateBucketConfiguration={
-                        'LocationConstraint': boto3.session.Session().region_name
-                    }
-                )
-                print(f"S3 bucket '{S3_BUCKET_NAME}' created successfully.")
-            except ClientError as create_error:
-                print(f"Failed to create S3 bucket '{S3_BUCKET_NAME}': {create_error}")
-        else:
-            print(f"Unexpected error while accessing S3 bucket: {e}")
-
-# Ensure resources exist at the start
-ensure_dynamodb_table_exists()
-ensure_s3_bucket_exists()
 
 # Define cache_table after ensuring it exists
 cache_table = dynamodb.Table(DYNAMODB_TABLE_NAME)

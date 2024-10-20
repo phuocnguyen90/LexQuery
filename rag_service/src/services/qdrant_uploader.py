@@ -44,7 +44,7 @@ def add_record_to_qdrant(record: Record):
         # Use the embedding function to get the embedding
         embedding = fe_embed_text(record.content)
         if not embedding:
-            logger.log_error(f"Skipping record {record.record_id} due to embedding failure.")
+            logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             return
 
         # Use record_id directly as the point ID
@@ -61,9 +61,9 @@ def add_record_to_qdrant(record: Record):
                 )
             ]
         )
-        logger.log_info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
+        logger.info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
     except Exception as e:
-        logger.log_error(f"Failed to add record {record.record_id} to Qdrant: {e}")
+        logger.error(f"Failed to add record {record.record_id} to Qdrant: {e}")
 
 def add_records_to_qdrant(records: List[Record]):
     """
@@ -75,7 +75,7 @@ def add_records_to_qdrant(records: List[Record]):
     for record in records:
         embedding = fe_embed_text(record.content)
         if not embedding:
-            logger.log_error(f"Skipping record {record.record_id} due to embedding failure.")
+            logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             continue
 
         # Generate a separate UUID for Qdrant point ID
@@ -94,6 +94,6 @@ def add_records_to_qdrant(records: List[Record]):
                 collection_name=COLLECTION_NAME,
                 points=points
             )
-            logger.log_info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
+            logger.info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
         except Exception as e:
-            logger.log_error(f"Failed to add records to Qdrant: {e}")
+            logger.error(f"Failed to add records to Qdrant: {e}")

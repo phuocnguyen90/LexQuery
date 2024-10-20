@@ -8,7 +8,8 @@ provider:
   runtime: python3.10
   region: us-east-1  # Change as needed
   environment:
-    TABLE_NAME: your_dynamodb_table_name
+    CACHE_TABLE_NAME: CacheTable
+    LOG_TABLE_NAME: LogTable
     GROQ_API_KEY: ${ssm:/path/to/groq_api_key~true}
     QDRANT_API_KEY: ${ssm:/path/to/qdrant_api_key~true}
     QDRANT_URL: ${ssm:/path/to/qdrant_url~true}
