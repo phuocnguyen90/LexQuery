@@ -73,7 +73,7 @@ def invoke_rag(query_item: QueryModel):
         cache_data = query_item.dict()
         cache_data["timestamp"] = int(time.time())  # Add a timestamp for TTL tracking
         Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
-        logger.info("Cached response for future use", {"query_text": query_item.query_text})
+        logger.debug("Cached response for future use", {"query_text": query_item.query_text})
     else:
         logger.warning("Incomplete response, not caching", {"query_text": query_item.query_text})
 
@@ -81,7 +81,7 @@ def invoke_rag(query_item: QueryModel):
     if query_item.is_complete:
         try:
             query_item.put_item()
-            logger.info("Query processed and stored successfully", {"query_text": query_item.query_text})
+            logger.debug("Query processed and stored successfully", {"query_text": query_item.query_text})
         except Exception as e:
             logger.error("Failed to store the processed query in DynamoDB", {"query_text": query_item.query_text, "error": str(e)})
 

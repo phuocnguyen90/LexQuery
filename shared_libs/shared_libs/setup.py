@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     description="Shared libraries for LLM providers, utilities, and prompts",
     author="Your Name",
-    author_email="your.email@example.com",
+    author_email="phuocnguyen90l@yahoo.com",
     packages=find_packages(),
     install_requires=[
         "requests",

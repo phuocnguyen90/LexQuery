@@ -20,14 +20,30 @@ AWS_REGION=os.getenv("AWS_REGION", "us-east-1")
 # Initialize Redis connection if in development mode
 cache_client = None
 if DEVELOPMENT_MODE:
-    cache_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+    try:
+        cache_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+        cache_client.ping()  # Test if Redis is up
+    except redis.RedisError as e:
+        print(f"Error connecting to Redis: {e}")
+        cache_client = None
 
 # Initialize DynamoDB and S3 clients
-dynamodb = boto3.resource("dynamodb")
-s3 = boto3.client("s3")
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+s3 = boto3.client("s3", region_name=AWS_REGION)
 
 # Define cache_table after ensuring it exists
-cache_table = dynamodb.Table(CACHE_TABLE_NAME)
+try:
+    cache_table = dynamodb.Table(CACHE_TABLE_NAME)
+    # Attempt to load the table to ensure it's accessible
+    cache_table.load()  # This will raise an error if the table does not exist
+except ClientError as e:
+    if e.response['Error']['Code'] == 'ResourceNotFoundException':
+        print(f"DynamoDB table '{CACHE_TABLE_NAME}' not found.")
+        raise
+    else:
+        print(f"Unexpected error accessing DynamoDB: {e}")
+        raise
+
 
 class Cache:
     @staticmethod
@@ -38,49 +54,44 @@ class Cache:
         if DEVELOPMENT_MODE:
             # Use Redis for development mode
             try:
-                cache_client.set(key, value_str, ex=expiry)
+                if cache_client:
+                    cache_client.set(key, value_str, ex=expiry)
             except redis.RedisError as e:
                 print(f"Error setting item in Redis cache: {e}")
         else:
             # Production mode: Use DynamoDB with optional S3 for larger values
-            if len(value_str.encode('utf-8')) > 400 * 1024:  # If > 400KB, store in S3
-                s3_key = f"cache/{key}-{int(time.time())}.json"
-                try:
+            try:
+                if len(value_str.encode('utf-8')) > 400 * 1024:  # If > 400KB, store in S3
+                    s3_key = f"cache/{key}-{int(time.time())}.json"
                     s3.put_object(Bucket=S3_BUCKET_NAME, Key=s3_key, Body=value_str)
                     value_to_store = {
                         'cache_key': key,
                         's3_key': s3_key,
-                        'ttl': int(time.time()) + expiry  # Use TTL to auto-expire items in DynamoDB
+                        'expires_at': int(time.time()) + expiry
                     }
-                except ClientError as e:
-                    print(f"Error setting item in S3 cache: {e}")
-                    return
-            else:
-                value_to_store = {
-                    'cache_key': key,
-                    'cache_value': value_str,
-                    'ttl': int(time.time()) + expiry  # Use TTL to auto-expire items in DynamoDB
-                }
-
-            try:
+                else:
+                    value_to_store = {
+                        'cache_key': key,
+                        'cache_value': value_str,
+                        'expires_at': int(time.time()) + expiry
+                    }
                 cache_table.put_item(Item=value_to_store)
             except ClientError as e:
-                print(f"Error setting item in DynamoDB cache: {e}")
+                print(f"Error setting item in DynamoDB cache: {e.response['Error']['Message']}")
 
     @staticmethod
     def get(key: str) -> Optional[dict]:
         """Get a value from Redis or DynamoDB."""
         if DEVELOPMENT_MODE:
-            # Use Redis for development mode
             try:
-                value = cache_client.get(key)
-                if value:
-                    return json.loads(value)
+                if cache_client:
+                    value = cache_client.get(key)
+                    if value:
+                        return json.loads(value)
             except redis.RedisError as e:
                 print(f"Error getting item from Redis cache: {e}")
             return None
         else:
-            # Production mode: Use DynamoDB and optionally S3
             try:
                 response = cache_table.get_item(Key={'cache_key': key})
                 if 'Item' in response:
@@ -89,14 +100,11 @@ class Cache:
                         return json.loads(item['cache_value'])
                     elif 's3_key' in item:
                         s3_key = item['s3_key']
-                        try:
-                            s3_response = s3.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
-                            s3_content = s3_response['Body'].read().decode('utf-8')
-                            return json.loads(s3_content)
-                        except ClientError as e:
-                            print(f"Error getting item from S3 cache: {e}")
+                        s3_response = s3.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+                        s3_content = s3_response['Body'].read().decode('utf-8')
+                        return json.loads(s3_content)
             except ClientError as e:
-                print(f"Error getting item from DynamoDB cache: {e}")
+                print(f"Error getting item from DynamoDB cache: {e.response['Error']['Message']}")
             return None
 
     @staticmethod
@@ -104,7 +112,8 @@ class Cache:
         """Delete a value from Redis or DynamoDB."""
         if DEVELOPMENT_MODE:
             try:
-                cache_client.delete(key)
+                if cache_client:
+                    cache_client.delete(key)
             except redis.RedisError as e:
                 print(f"Error deleting item from Redis cache: {e}")
         else:
@@ -114,10 +123,7 @@ class Cache:
                     item = response['Item']
                     if 's3_key' in item:
                         s3_key = item['s3_key']
-                        try:
-                            s3.delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
-                        except ClientError as e:
-                            print(f"Error deleting item from S3 cache: {e}")
+                        s3.delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                 cache_table.delete_item(Key={'cache_key': key})
             except ClientError as e:
-                print(f"Error deleting item from DynamoDB cache: {e}")
+                print(f"Error deleting item from DynamoDB cache: {e.response['Error']['Message']}")

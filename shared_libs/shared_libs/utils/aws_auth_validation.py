@@ -14,7 +14,7 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
-def ensure_dynamodb_table_exists(table_name):
+def validate_dynamodb(table_name):
     """Ensure that the specified DynamoDB table exists."""
     try:
         table = dynamodb.Table(table_name)
@@ -46,12 +46,9 @@ def ensure_dynamodb_table_exists(table_name):
                 print(f"Failed to create DynamoDB table '{table_name}': {create_error}")
         else:
             print(f"Unexpected error while accessing DynamoDB: {e}")
-# Use the function to create tables
-ensure_dynamodb_table_exists("CacheTable")
-ensure_dynamodb_table_exists("LogTable")
-ensure_dynamodb_table_exists("QueryTable")
 
-def ensure_s3_bucket_exists():
+
+def validate_s3():
     """Ensure that the specified S3 bucket exists."""
     try:
         # Check if the bucket exists by attempting to access its location

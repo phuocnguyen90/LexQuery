@@ -18,7 +18,7 @@ except ImportError:
 
 
 # Load configuration
-config_loader = ConfigLoader()  # Load config once globally
+config_loader = ConfigLoader()  
 
 # Configure logging
 logger = Logger(__name__)
@@ -71,8 +71,8 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
         provider = llm_provider
 
     # Step 1: Check Cache for an Existing Response
-    logger.info(f"Checking cache for query: {query_text}")
-    cached_response = Cache.get(query_text)
+    logger.debug(f"Checking cache for query: {query_text}")
+    cached_response = Cache.get(query_text.strip().lower())
     if cached_response:
         logger.info(f"Cache hit for query: {query_text}")
         
@@ -88,7 +88,7 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
             logger.warning(f"Cache hit but no response_text found for query: {query_text}, generating a new response.")
 
     # Step 2: Retrieve similar documents using Qdrant
-    logger.info(f"Retrieving documents related to query: {query_text}")
+    logger.debug(f"Retrieving documents related to query: {query_text}")
     retrieved_docs = search_qdrant(query_text, top_k=3)
     if not retrieved_docs:
         logger.warning(f"No relevant documents found for query: {query_text}")
@@ -111,11 +111,11 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
 
     # Step 5: Combine system prompt and user message to form the full prompt
     full_prompt = f"{system_prompt}\n\nCâu hỏi của người dùng: {query_text}\n\nCác câu trả lời liên quan:\n\n{context}"
-    logger.info(f"Full prompt created for query: {query_text}")
+    logger.debug(f"Full prompt created for query: {query_text}")
 
     # Step 6: Send the prompt to the LLM via the provided provider
     try:
-        logger.info(f"Sending prompt to LLM for query: {query_text}")
+        logger.debug(f"Sending prompt to LLM for query: {query_text}")
 
         # Differentiate between single-message and multi-turn interaction
         if conversation_history:
@@ -140,13 +140,14 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
     sources = [doc['record_id'] for doc in retrieved_docs]
 
     # Step 9: Cache the response for future queries
+    normalized_query = query_text.strip().lower()
     cache_data = {
         "query_text": query_text,
         "response_text": response_text,
         "sources": sources,
         "timestamp": int(time.time())  # Adding timestamp for potential TTL handling
     }
-    Cache.set(query_text, cache_data)
+    Cache.set(normalized_query, cache_data)
     logger.info(f"Cached response for query: {query_text}")
 
     return QueryResponse(

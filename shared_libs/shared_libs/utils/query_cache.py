@@ -5,10 +5,10 @@ import logging
 import boto3
 import redis
 from botocore.exceptions import ClientError
-
+from utils.logger import Logger
 # Configure logger
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+
+logger = Logger(__name__)
 
 # Environment variables to determine the mode and configuration
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True") == "True"  # Default to True if not set
@@ -16,7 +16,7 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_DB = int(os.getenv("REDIS_DB", 0))
-TABLE_NAME = os.getenv("PROCESSED_MESSAGES_TABLE", "ProcessedMessages")
+CACHE_TABLE_NAME = os.getenv("CACHE_TABLE_NAME", "CacheTable")
 
 if not DEVELOPMENT_MODE:
     # Initialize DynamoDB in production
@@ -27,7 +27,7 @@ else:
 
 
 class ProcessedMessageCache:
-    def __init__(self, table_name=TABLE_NAME):
+    def __init__(self, table_name=CACHE_TABLE_NAME):
         self.table_name = table_name
         if not DEVELOPMENT_MODE:
             self.table = dynamodb.Table(table_name)

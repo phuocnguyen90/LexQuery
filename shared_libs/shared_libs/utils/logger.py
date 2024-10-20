@@ -1,5 +1,3 @@
-# shared_libs/utils/logger.py
-
 import os
 import boto3
 import time
@@ -25,26 +23,40 @@ LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
 LOCAL_LOG_FILE = LOG_DIR / "session_logs.json"
 
-# Configure base logging
-logging.basicConfig(level=logging.INFO if DEVELOPMENT_MODE else logging.INFO)
+# Base logging configuration
 log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class Logger:
     def __init__(self, name: str):
         self.logger = self.get_logger(name)
+
+        if not DEVELOPMENT_MODE:
+            # Validate that the DynamoDB table exists for logging
+            try:
+                self.log_table = dynamodb.Table(LOG_TABLE_NAME)
+                # Attempt to load the table to verify it exists
+                self.log_table.load()
+                print(f"Logger initialized with DynamoDB table: {LOG_TABLE_NAME}")
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    print(f"Error: DynamoDB table '{LOG_TABLE_NAME}' not found.")
+                    raise e
+                else:
+                    print(f"Unexpected error accessing DynamoDB: {e}")
+                    raise e
+
     @staticmethod
     def get_logger(name: str) -> logging.Logger:
         """
         Get a logger instance with handlers configured for the environment.
-        
+
         :param name: Name of the logger, typically the module's __name__.
         :return: Configured logger instance.
         """
         logger = logging.getLogger(name)
 
-        if not logger.handlers:
-            # Prevent adding multiple handlers to the same logger
+        if not logger.hasHandlers():
             if DEVELOPMENT_MODE:
                 # Console Handler for Development
                 console_handler = logging.StreamHandler()
@@ -85,8 +97,8 @@ class Logger:
         if not DEVELOPMENT_MODE:
             # Log to DynamoDB in production
             try:
-                table = dynamodb.Table(LOG_TABLE_NAME)
-                table.put_item(Item=log_entry)
+                print(f"Attempting to log to DynamoDB: {log_entry}")
+                self.log_table.put_item(Item=log_entry)
                 self.logger.info(f"Log entry created in DynamoDB: {log_entry['log_id']}")
             except ClientError as e:
                 self.logger.error(f"Failed to log event to DynamoDB: {e.response['Error']['Message']}")
@@ -129,18 +141,24 @@ class Logger:
         else:
             logging.getLogger(__name__).info("Skipping S3 upload since the environment is not production.")
 
+    # Convenience methods for logging at different levels
     def info(self, message, details=None):
         """Helper method to log an info event."""
+        self.logger.info(message)
         self.log_event(event_type="INFO", message=message, details=details)
 
     def error(self, message, details=None):
         """Helper method to log an error event."""
+        self.logger.error(message)
         self.log_event(event_type="ERROR", message=message, details=details)
 
     def debug(self, message, details=None):
         """Helper method to log a debug event."""
+        if DEVELOPMENT_MODE:  # Debug logs should only be active in Development mode
+            self.logger.debug(message)
         self.log_event(event_type="DEBUG", message=message, details=details)
 
     def warning(self, message, details=None):
         """Helper method to log a warning event."""
+        self.logger.warning(message)
         self.log_event(event_type="WARNING", message=message, details=details)

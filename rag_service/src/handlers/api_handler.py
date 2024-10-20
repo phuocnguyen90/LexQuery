@@ -2,6 +2,7 @@
 import os
 import uvicorn
 import boto3
+from botocore.exceptions import ClientError
 import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -19,10 +20,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.query_model import QueryModel
 from services.query_rag import query_rag
 
+config=ConfigLoader()
 # Initialize logger
 logger = Logger(__name__)
 
 # Environment variables
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 WORKER_LAMBDA_NAME = os.environ.get("WORKER_LAMBDA_NAME", "RagWorker")
 
 # Load the LLM provider (abstracted utility function handles fallbacks)
@@ -54,66 +57,101 @@ def get_query_endpoint(query_id: str):
 
 @app.post("/submit_query")
 def submit_query_endpoint(request: SubmitQueryRequest):
+    """
+    Endpoint for handling query submission. Checks cache, processes using RAG, and caches response.
+    """
     try:
         query_text = request.query_text
         logger.info(f"Received submit query request: {query_text}")
 
-        # Check the cache first
+        # Step 1: Check Cache for Existing Response
         cached_response = Cache.get(query_text)
         if cached_response:
             logger.info(f"Cache hit for query: {query_text}")
             return cached_response
 
-        # Create a new QueryModel item
+        # Step 2: Process the Query
         new_query = QueryModel(query_text=query_text)
-        logger.debug(f"Created new QueryModel: {new_query.dict()}")
-
         if WORKER_LAMBDA_NAME:
-            # Make an async call to the worker Lambda
-            try:
-                new_query.put_item()  # Save initial query item to the database
-                invoke_worker(new_query)
-                logger.info("Worker Lambda invoked asynchronously")
-            except Exception as e:
-                logger.error(f"Error invoking worker Lambda: {str(e)}")
-                raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda")
+            # Make an async call to the worker Lambda (for production use case)
+            new_query.put_item()  # Save initial query item to the database
+            invoke_worker(new_query)
+            logger.info("Worker Lambda invoked asynchronously")
         else:
-            # Handle the RAG processing directly (useful for local development)
+            # Handle the RAG processing locally (for development use case)
             logger.info("Processing query locally")
-            query_response = query_rag(query_text, llm_provider)  # Use the LLM provider loaded from the utility
+            query_response = query_rag(query_text, llm_provider)
             new_query.answer_text = query_response.response_text
             new_query.sources = query_response.sources
             new_query.is_complete = True
-            new_query.put_item()
 
-            # Cache the response for future queries
+            # Step 3: Save the updated query item to the database
+            new_query.put_item()
+            logger.info(f"Saved processed query to database: {new_query.dict()}")
+
+            # Step 4: Cache the response for future queries
             response_data = new_query.dict()
             Cache.set(query_text, response_data)
-            logger.info("Query processed and cached locally")
+            logger.info(f"Query processed and cached locally: {query_text}")
 
-        return new_query.dict()  # Return a dictionary to ensure compatibility with FastAPI response format
+        # Step 5: Return the response
+        return new_query.dict()
+
     except Exception as exc:
         logger.error(f"Failed to handle submit_query endpoint: {str(exc)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-def invoke_worker(query: QueryModel):
-    # Initialize the Lambda client
-    lambda_client = boto3.client("lambda")
 
-    # Get the QueryModel as a dictionary
+lambda_client = boto3.client("lambda", region_name=AWS_REGION)
+ecs_client = boto3.client("ecs", region_name=AWS_REGION)
+
+def invoke_worker(query: QueryModel):
     payload = query.dict()
 
-    # Invoke the worker Lambda function asynchronously
+    # Try invoking Lambda asynchronously
     try:
         response = lambda_client.invoke(
             FunctionName=WORKER_LAMBDA_NAME,
             InvocationType="Event",
             Payload=json.dumps(payload),
         )
-        logger.info("Worker Lambda invoked")
+        logger.info(f"Worker Lambda invoked successfully: {WORKER_LAMBDA_NAME}")
     except Exception as e:
-        logger.error(f"Failed to invoke worker Lambda: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda")
+        logger.error(f"Failed to invoke worker Lambda, attempting to use Fargate: {str(e)}")
+        
+        # Fallback to Fargate if Lambda invocation fails
+        try:
+            response = ecs_client.run_task(
+                cluster='<your_cluster_name>',
+                launchType='FARGATE',
+                taskDefinition='<your_task_definition>',
+                count=1,
+                networkConfiguration={
+                    'awsvpcConfiguration': {
+                        'subnets': ['<subnet_id>'],
+                        'assignPublicIp': 'ENABLED'
+                    }
+                },
+                overrides={
+                    'containerOverrides': [
+                        {
+                            'name': '<your_container_name>',
+                            'command': ["python", "lambda_worker.py"],
+                            'environment': [
+                                {
+                                    'name': 'QUERY_PAYLOAD',
+                                    'value': json.dumps(payload)
+                                }
+                            ]
+                        }
+                    ]
+                }
+            )
+            logger.info("Fargate container started as a fallback for Lambda failure.")
+        except Exception as fargate_error:
+            logger.error(f"Failed to invoke Fargate task as fallback: {str(fargate_error)}")
+            raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda or Fargate task")
+
 
 # Local Development Function to Test API Endpoints
 if __name__ == "__main__":

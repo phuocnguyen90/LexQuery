@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
-from shared_libs.utils.aws_auth_validation import ensure_dynamodb_table_exists, ensure_s3_bucket_exists
+from shared_libs.utils.aws_auth_validation import validate_dynamodb, validate_s3
 
 
 class ConfigLoader:
@@ -34,9 +34,9 @@ class ConfigLoader:
                 pass
             else:                
                 # Validate AWS resources before proceeding with the rest of the configuration
-                ensure_dynamodb_table_exists(os.getenv('CACHE_TABLE_NAME', 'CacheTable'))
-                ensure_dynamodb_table_exists(os.getenv('LOG_TABLE_NAME', 'LogTable'))
-                ensure_s3_bucket_exists()
+                validate_dynamodb(os.getenv('CACHE_TABLE_NAME', 'CacheTable'))
+                validate_dynamodb(os.getenv('LOG_TABLE_NAME', 'LogTable'))
+                validate_s3()
         return cls._instance
 
     def _load_environment_variables(self, dotenv_relative_path):
