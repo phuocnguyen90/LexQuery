@@ -49,7 +49,7 @@ def get_query_endpoint(query_id: str):
     query = QueryModel.get_item(query_id)
     if query:
         return query
-    logger.log_warning(f"Query not found for ID: {query_id}")
+    logger.warning(f"Query not found for ID: {query_id}")
     raise HTTPException(status_code=404, detail="Query not found")
 
 @app.post("/submit_query")

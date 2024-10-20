@@ -1508,5 +1508,831 @@
       "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
       "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
     }
+  },
+  {
+    "log_id": "cbce4a51-448f-4790-816f-086351faded0",
+    "event_type": "WARNING",
+    "timestamp": 1729405603,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "d2da982a-4b71-4b86-952f-078e50bc1509",
+    "event_type": "INFO",
+    "timestamp": 1729405605,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "7def9f69-5bec-4cc3-a867-dea238b8c916",
+    "event_type": "INFO",
+    "timestamp": 1729405606,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "210a36c6-6cb5-4e30-b928-771153bb86fb",
+    "event_type": "INFO",
+    "timestamp": 1729405606,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "1ae7a2a7-a140-4f18-bed7-23be9ba0ea76",
+    "event_type": "INFO",
+    "timestamp": 1729405606,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "78f2bd30-9326-46de-b53e-076554322bea",
+    "event_type": "INFO",
+    "timestamp": 1729405607,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "b6b9173e-376b-41ee-a87f-99f7ffc8fdf7",
+    "event_type": "INFO",
+    "timestamp": 1729405607,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "0596ab4c-3467-4a49-b897-1ff87f762eb5",
+    "event_type": "INFO",
+    "timestamp": 1729405607,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "e43cdc41-e8c2-49e8-b4d4-b01efc02e525",
+    "event_type": "DEBUG",
+    "timestamp": 1729405607,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "476de2af-445f-4914-aa07-8901e5f8c7a8",
+    "event_type": "INFO",
+    "timestamp": 1729405607,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "33766607-a321-414b-81e2-4b9a801d2d39",
+    "event_type": "INFO",
+    "timestamp": 1729405608,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "3dedb945-9e80-4700-94b9-fe231b86be72",
+    "event_type": "INFO",
+    "timestamp": 1729405608,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "f4a80fb0-ef70-4a7b-bbf9-5f9b8ebc9588",
+    "event_type": "DEBUG",
+    "timestamp": 1729405608,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "0f5c3a75-b50e-49a9-973c-ce3bebe817b6",
+    "event_type": "INFO",
+    "timestamp": 1729405608,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "7ccc132e-0c10-4797-b690-52c78f0d58d7",
+    "event_type": "INFO",
+    "timestamp": 1729405608,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "a9fc3bdb-bf68-4f08-9252-3756f3b5a85b",
+    "event_type": "INFO",
+    "timestamp": 1729405609,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "80a56517-58fd-49a2-95a2-1745d21d8189",
+    "event_type": "INFO",
+    "timestamp": 1729405610,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "81f46b9b-d4bf-4a95-9ddb-9e44962da36c",
+    "event_type": "ERROR",
+    "timestamp": 1729405611,
+    "message": "Error during RAG processing",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "ea6ef045-43d4-423d-b068-06c74d4ad5bf",
+    "event_type": "WARNING",
+    "timestamp": 1729405749,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "c6b5270f-2239-4558-951a-1e473dd4b092",
+    "event_type": "INFO",
+    "timestamp": 1729405751,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "d458770e-d579-415f-b449-c357d55a3e6c",
+    "event_type": "INFO",
+    "timestamp": 1729405751,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "eae50842-aa4a-4609-937a-8f7cd8f17058",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "b6706110-a38c-4f1d-a102-e6eeda6ba22b",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "fe46980f-31d1-4d9c-95d4-8a9cf7ca1809",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "0331e4ac-38a9-4bbd-9b24-916d0bf0525f",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "68f44ba4-2b4e-41b2-89e2-a3e7fc7819a9",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "1fb18680-a934-4189-bf58-aaa508195314",
+    "event_type": "DEBUG",
+    "timestamp": 1729405752,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "24158ac6-8cbb-4108-bf8c-09828db54494",
+    "event_type": "INFO",
+    "timestamp": 1729405752,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "ad2da591-7622-4747-8a17-9ea183fc7fa2",
+    "event_type": "INFO",
+    "timestamp": 1729405753,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "f81c417d-2bb3-4e8e-931f-59378efdecce",
+    "event_type": "INFO",
+    "timestamp": 1729405753,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "f4f65edf-6cf1-4af7-b3da-1df8e87b0cff",
+    "event_type": "DEBUG",
+    "timestamp": 1729405753,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "5ad09e1f-d989-40ba-9c65-f2b856111c97",
+    "event_type": "INFO",
+    "timestamp": 1729405753,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "df65c791-f7a8-4806-9b0e-47d88c7e52c9",
+    "event_type": "INFO",
+    "timestamp": 1729405753,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "fc25e8f6-c63d-48d5-824c-916b69c03ed4",
+    "event_type": "INFO",
+    "timestamp": 1729405755,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "6310825a-3535-43a8-b5ea-3f365c9702bf",
+    "event_type": "INFO",
+    "timestamp": 1729405756,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "e62742be-54fb-4ae8-8d1f-d1723effa10d",
+    "event_type": "ERROR",
+    "timestamp": 1729405757,
+    "message": "Error during RAG processing",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "e0fa55ed-a78c-45ac-b238-c1cd63801309",
+    "event_type": "WARNING",
+    "timestamp": 1729406404,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "69d00a9a-07c4-4d75-b48f-25096aef5c85",
+    "event_type": "INFO",
+    "timestamp": 1729406405,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "11ae45d8-acfd-46a0-9079-1119bbd46433",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "623efea2-169e-4adf-9253-3fee4c39efe4",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "c01e9d64-2061-415e-be7f-bab01cdb45d6",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "07ee6f5d-f4e1-4ecb-aef0-5d40b86d34e7",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "eac7dc2b-8f51-4a9c-92bb-8b610fe773ba",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "0662d3b2-cac1-45fa-8fb3-b3bfea4198e2",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "4b6a4139-c89c-4efa-8360-87bb34ea16e0",
+    "event_type": "DEBUG",
+    "timestamp": 1729406406,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "8c79d336-efc1-4cb4-a4ed-58d21dd385ae",
+    "event_type": "INFO",
+    "timestamp": 1729406406,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "cb6c5e19-0b05-4aaa-ad0a-1e861661e863",
+    "event_type": "INFO",
+    "timestamp": 1729406408,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "f18c1af2-2c58-4e5d-bc7b-4de8390d823f",
+    "event_type": "INFO",
+    "timestamp": 1729406408,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "0f5ed723-ed1b-4d63-9b92-d642a9d72143",
+    "event_type": "DEBUG",
+    "timestamp": 1729406408,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "09c05517-7671-4079-aaf9-0a78189feede",
+    "event_type": "INFO",
+    "timestamp": 1729406408,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "ca2959f4-3b0b-4760-9a90-5e586dfcc88c",
+    "event_type": "INFO",
+    "timestamp": 1729406408,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "3e32ab30-19ad-4080-bc36-fe94fa1008a1",
+    "event_type": "INFO",
+    "timestamp": 1729406409,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "49055774-d756-4178-8f2a-15a38c8cfb72",
+    "event_type": "INFO",
+    "timestamp": 1729406409,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "3774ba54-d266-463f-b09f-e1dad71a90e7",
+    "event_type": "ERROR",
+    "timestamp": 1729406411,
+    "message": "Error during RAG processing",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "ca1869eb-fb60-48c1-8436-6255bcb2fac6",
+    "event_type": "WARNING",
+    "timestamp": 1729406936,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "ba727348-5755-4633-a1c6-9f613e742bde",
+    "event_type": "INFO",
+    "timestamp": 1729406937,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "eaa13578-f43e-41a3-9963-c0e74ae1ca4b",
+    "event_type": "WARNING",
+    "timestamp": 1729406991,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "38298732-f6e7-4632-b324-cd3175649af7",
+    "event_type": "INFO",
+    "timestamp": 1729406993,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "b9c8d274-eb7f-4465-b35b-73e4aa2d2465",
+    "event_type": "INFO",
+    "timestamp": 1729406993,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "3e009063-e614-44a9-af42-7ffe6c3473df",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "9d03076a-9f02-4095-aa41-05f238c3b057",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "8980b49e-8000-4c80-8f42-bf2fafcd3627",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "47c33775-6782-4b1b-bb9b-f4ae203a4049",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "8260cd77-19b3-4ae8-be20-ce834ba96aa9",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "bb83f26f-c1bb-404c-9b92-cf9c1cce9ca2",
+    "event_type": "DEBUG",
+    "timestamp": 1729406994,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "782e617e-63c7-4a26-8072-231398a12bca",
+    "event_type": "INFO",
+    "timestamp": 1729406994,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "b44a56c3-b804-46ba-b4cf-5ab09c054630",
+    "event_type": "INFO",
+    "timestamp": 1729406995,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "4b8896ac-1f5f-42e6-8242-875d3fe9743e",
+    "event_type": "INFO",
+    "timestamp": 1729406995,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "2d816a0b-d9ee-4139-838a-6fcfa0991bce",
+    "event_type": "DEBUG",
+    "timestamp": 1729406995,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "749718fb-3a0a-4449-a16c-06f96299761c",
+    "event_type": "INFO",
+    "timestamp": 1729406995,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "a6de8414-d9c7-4eb2-bc1e-fe0ae2603e86",
+    "event_type": "INFO",
+    "timestamp": 1729406995,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "1c499d66-6b43-4c1b-90ca-11297025f8bd",
+    "event_type": "INFO",
+    "timestamp": 1729406996,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "825c658f-bf7f-4759-8496-860c9db1ed9f",
+    "event_type": "INFO",
+    "timestamp": 1729406996,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "dd22946f-2c78-4ec8-9357-7ec96f0bf5e3",
+    "event_type": "ERROR",
+    "timestamp": 1729406997,
+    "message": "Failed to store the processed query in DynamoDB",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "e7d9e7fb-d95f-4bc2-b257-1191dfcc09bb",
+    "event_type": "WARNING",
+    "timestamp": 1729407732,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "e6fddc11-5c7d-4805-959c-ec7129e3ccc6",
+    "event_type": "INFO",
+    "timestamp": 1729407734,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "8517a6ec-7413-42ca-9fa7-1a183dec5fa5",
+    "event_type": "INFO",
+    "timestamp": 1729407734,
+    "message": "RAG system prompt loaded successfully.",
+    "details": {}
+  },
+  {
+    "log_id": "90db184f-4112-40cd-96dd-6cd696532209",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "1450aebc-0010-4d1b-b7bc-df3f61282230",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "220bd776-591c-4fa2-ab70-8c8ae13d4e39",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "ef680043-02c0-4be4-9117-077277aeae03",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "f4d97afb-2800-43b7-90be-1e873052712c",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "5abc792f-0d77-49bd-9104-c2b0ab42a6f4",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "3ac74f8d-c589-441a-959b-a01280296e71",
+    "event_type": "DEBUG",
+    "timestamp": 1729407735,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "93d27f6b-781e-401e-8e79-ee6327f11aa8",
+    "event_type": "INFO",
+    "timestamp": 1729407735,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "06a0c87d-6976-457b-803a-50f9e223602b",
+    "event_type": "INFO",
+    "timestamp": 1729407736,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?'",
+    "details": {}
+  },
+  {
+    "log_id": "0e4864fb-83ca-4602-af95-774cdd8a5c8e",
+    "event_type": "INFO",
+    "timestamp": 1729407736,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "40a2c226-1be6-43a4-808b-00aca360bd3d",
+    "event_type": "DEBUG",
+    "timestamp": 1729407736,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "c0aafe68-03b7-425a-8988-4026143c3a34",
+    "event_type": "INFO",
+    "timestamp": 1729407736,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "5a3413aa-dead-4eb9-bda7-6dde720074e7",
+    "event_type": "INFO",
+    "timestamp": 1729407736,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "d6b8b904-689c-493b-aa42-303dc49cf9c7",
+    "event_type": "INFO",
+    "timestamp": 1729407738,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+    "details": {}
+  },
+  {
+    "log_id": "598048d2-f1fc-4c02-b628-ed8622a1cd2b",
+    "event_type": "INFO",
+    "timestamp": 1729407739,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?"
+    }
+  },
+  {
+    "log_id": "16b51c6f-6c68-4272-9e60-2c8fb4fdc512",
+    "event_type": "ERROR",
+    "timestamp": 1729407740,
+    "message": "Failed to store the processed query in DynamoDB",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi \u0111\u1ea1i di\u1ec7n theo ph\u00e1p lu\u1eadt c\u1ee7a doanh nghi\u1ec7p?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
+  },
+  {
+    "log_id": "4545b5ba-5095-48cd-a17b-92d9211cf24c",
+    "event_type": "WARNING",
+    "timestamp": 1729407770,
+    "message": "Failed to initialize embedding provider 'local': Local embedding will be used.. Falling back to FastEmbed.",
+    "details": {}
+  },
+  {
+    "log_id": "c0349376-2372-4788-b680-320e810be42f",
+    "event_type": "INFO",
+    "timestamp": 1729407772,
+    "message": "Successfully initialized Qdrant client at: https://bd628310-a7a9-48d8-a0bd-62045ba8c96f.europe-west3-0.gcp.cloud.qdrant.io",
+    "details": {}
+  },
+  {
+    "log_id": "37b47d72-88af-4805-8fc9-1ff1950a6758",
+    "event_type": "INFO",
+    "timestamp": 1729407772,
+    "message": "RAG system prompt loaded successfully.",
+    "details": {}
+  },
+  {
+    "log_id": "07a2c9be-dfe4-4b30-bb07-8e7c2eca349d",
+    "event_type": "INFO",
+    "timestamp": 1729407772,
+    "message": "Running example RAG call.",
+    "details": {}
+  },
+  {
+    "log_id": "9b5eae5b-0107-48ce-a47c-41fa6ff8a17f",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "No valid cache found, invoking RAG",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?"
+    }
+  },
+  {
+    "log_id": "f0a9b558-0bdf-40ad-8167-626da677336f",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "Checking cache for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "25deaf27-b8d7-423b-bc13-c47ddcfdcbbc",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "Retrieving documents related to query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "f06854ce-0d60-4396-9bb6-9fd9d0b12a34",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "Generating embedding for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?'",
+    "details": {}
+  },
+  {
+    "log_id": "3d912722-1bcf-4854-9692-28146b1b5862",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "Embedding text with provider 'local'.",
+    "details": {}
+  },
+  {
+    "log_id": "26e097bc-55da-4d1d-965a-6208c04298b9",
+    "event_type": "DEBUG",
+    "timestamp": 1729407773,
+    "message": "Embedding norm for text 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?': 1.0",
+    "details": {}
+  },
+  {
+    "log_id": "87a33ea3-c128-48eb-a83f-5775e9e04663",
+    "event_type": "INFO",
+    "timestamp": 1729407773,
+    "message": "Searching Qdrant for top 3 documents related to query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?'",
+    "details": {}
+  },
+  {
+    "log_id": "4e0666c2-db49-4fbb-b0f6-05e982954200",
+    "event_type": "INFO",
+    "timestamp": 1729407774,
+    "message": "Found 3 documents for query: 'th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?'",
+    "details": {}
+  },
+  {
+    "log_id": "27e03d87-4b3d-456d-98cc-3c3f16902e96",
+    "event_type": "INFO",
+    "timestamp": 1729407774,
+    "message": "Retrieved documents combined to form context for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "231465a9-5d8d-44f3-bf35-3ffdc1ea94dd",
+    "event_type": "DEBUG",
+    "timestamp": 1729407774,
+    "message": "System prompt loaded for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "6fb5fe53-6331-4f74-83f4-6aa3b07788f4",
+    "event_type": "INFO",
+    "timestamp": 1729407774,
+    "message": "Full prompt created for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "d86210c8-0811-46d7-a911-f011a31da036",
+    "event_type": "INFO",
+    "timestamp": 1729407774,
+    "message": "Sending prompt to LLM for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "1788e218-e7a2-4f43-8065-d8d8349bc7a5",
+    "event_type": "INFO",
+    "timestamp": 1729407776,
+    "message": "Cached response for query: th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+    "details": {}
+  },
+  {
+    "log_id": "d94909e5-d749-4a4e-a460-73120532f0a2",
+    "event_type": "INFO",
+    "timestamp": 1729407777,
+    "message": "Cached response for future use",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?"
+    }
+  },
+  {
+    "log_id": "183f9401-f61d-469a-82d6-38b329dea315",
+    "event_type": "ERROR",
+    "timestamp": 1729407778,
+    "message": "Failed to store the processed query in DynamoDB",
+    "details": {
+      "query_text": "th\u1ee7 t\u1ee5c thay \u0111\u1ed5i ng\u01b0\u1eddi th\u1eeba k\u1ebf?",
+      "error": "An error occurred (ResourceNotFoundException) when calling the PutItem operation: Requested resource not found"
+    }
   }
 ]

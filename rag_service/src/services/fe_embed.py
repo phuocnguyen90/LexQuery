@@ -29,7 +29,7 @@ try:
         raise ValueError("Local embedding will be used.")  # Force fallback to local embedding
 except Exception as e:
     # Fall back to FastEmbed
-    logger.log_warning(f"Failed to initialize embedding provider '{embedding_provider_name}': {e}. Falling back to FastEmbed.")
+    logger.warning(f"Failed to initialize embedding provider '{embedding_provider_name}': {e}. Falling back to FastEmbed.")
     embedding_provider = fastembed.TextEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 

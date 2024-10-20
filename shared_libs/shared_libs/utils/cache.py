@@ -14,7 +14,7 @@ REDIS_DB = int(os.getenv("REDIS_DB", 0))
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
 
 # DynamoDB and S3 Configuration
-DYNAMODB_TABLE_NAME = os.getenv("DYNAMODB_TABLE_NAME", "CacheTable")
+CACHE_TABLE_NAME = os.getenv("CACHE_TABLE_NAME", "CacheTable")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
 AWS_REGION=os.getenv("AWS_REGION", "us-east-1")
 # Initialize Redis connection if in development mode
@@ -27,7 +27,7 @@ dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
 
 # Define cache_table after ensuring it exists
-cache_table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+cache_table = dynamodb.Table(CACHE_TABLE_NAME)
 
 class Cache:
     @staticmethod

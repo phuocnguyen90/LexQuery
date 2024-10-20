@@ -45,7 +45,7 @@ try:
             break
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.log_warning(f"Failed to initialize Qdrant client, retrying ({attempt + 1}/{max_retries})...")
+                logger.warning(f"Failed to initialize Qdrant client, retrying ({attempt + 1}/{max_retries})...")
                 sleep(2)
             else:
                 logger.error(f"Failed to initialize Qdrant client after {max_retries} attempts: {e}")
@@ -109,7 +109,7 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
         if results:
             logger.info(f"Found {len(results)} documents for query: '{query}'")
         else:
-            logger.log_warning(f"No documents found for query: '{query}'")
+            logger.warning(f"No documents found for query: '{query}'")
 
         return results
     except Exception as e:

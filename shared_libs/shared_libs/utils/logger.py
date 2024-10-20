@@ -26,7 +26,7 @@ LOG_DIR.mkdir(exist_ok=True)
 LOCAL_LOG_FILE = LOG_DIR / "session_logs.json"
 
 # Configure base logging
-logging.basicConfig(level=logging.DEBUG if DEVELOPMENT_MODE else logging.INFO)
+logging.basicConfig(level=logging.INFO if DEVELOPMENT_MODE else logging.INFO)
 log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 

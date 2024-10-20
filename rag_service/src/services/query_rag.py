@@ -24,8 +24,13 @@ config_loader = ConfigLoader()  # Load config once globally
 logger = Logger(__name__)
 
 # Load the RAG prompt from config
-rag_prompt = config_loader.get_prompt("rag_prompt")
-print(rag_prompt)
+rag_prompt = config_loader.get_prompt("prompts.rag_prompt.system_prompt")
+
+# Log an appropriate warning if the prompt is empty
+if not rag_prompt:
+    logger.warning("RAG system prompt is empty or not found in prompts configuration.")
+else:
+    logger.info("RAG system prompt loaded successfully.")
 
 # Load the default provider using ProviderFactory, including fallback logic
 provider_name = config_loader.get_config_value("provider", "groq")
@@ -80,13 +85,13 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
                 sources=cached_response["sources"]
             )
         else:
-            logger.log_warning(f"Cache hit but no response_text found for query: {query_text}, generating a new response.")
+            logger.warning(f"Cache hit but no response_text found for query: {query_text}, generating a new response.")
 
     # Step 2: Retrieve similar documents using Qdrant
     logger.info(f"Retrieving documents related to query: {query_text}")
     retrieved_docs = search_qdrant(query_text, top_k=3)
     if not retrieved_docs:
-        logger.log_warning(f"No relevant documents found for query: {query_text}")
+        logger.warning(f"No relevant documents found for query: {query_text}")
         return QueryResponse(
             query_text=query_text,
             response_text="Không tìm thấy thông tin liên quan.",
