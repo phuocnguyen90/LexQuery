@@ -25,3 +25,4 @@ Requests
 scikit_learn
 tqdm
 uvicorn
+watchtower

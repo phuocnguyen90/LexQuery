@@ -10,7 +10,7 @@ from shared_libs.utils.logger import Logger
 
 # Load configuration from shared_libs
 config_loader = ConfigLoader()
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Load embedding configuration from the global config
 embedding_config = config_loader.get_config_value("embedding", {})

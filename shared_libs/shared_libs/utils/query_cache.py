@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from utils.logger import Logger
 # Configure logger
 
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Environment variables to determine the mode and configuration
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True") == "True"  # Default to True if not set

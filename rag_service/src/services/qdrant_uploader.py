@@ -15,7 +15,7 @@ from fe_embed import fe_embed_text  # Import the embedding function
 config = ConfigLoader()
 
 # Configure logging using Logger from shared_libs
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Load Qdrant configuration
 qdrant_config = config.get("qdrant", {})

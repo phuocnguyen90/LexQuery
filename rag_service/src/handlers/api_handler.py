@@ -22,7 +22,7 @@ from services.query_rag import query_rag
 
 config=ConfigLoader()
 # Initialize logger
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Environment variables
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -48,7 +48,7 @@ def index():
 
 @app.get("/get_query")
 def get_query_endpoint(query_id: str):
-    logger.info(f"Fetching query with ID: {query_id}")
+    logger.debug(f"Fetching query with ID: {query_id}")
     query = QueryModel.get_item(query_id)
     if query:
         return query
@@ -76,7 +76,7 @@ def submit_query_endpoint(request: SubmitQueryRequest):
             # Make an async call to the worker Lambda (for production use case)
             new_query.put_item()  # Save initial query item to the database
             invoke_worker(new_query)
-            logger.info("Worker Lambda invoked asynchronously")
+            logger.debug("Worker Lambda invoked asynchronously")
         else:
             # Handle the RAG processing locally (for development use case)
             logger.info("Processing query locally")
@@ -87,12 +87,12 @@ def submit_query_endpoint(request: SubmitQueryRequest):
 
             # Step 3: Save the updated query item to the database
             new_query.put_item()
-            logger.info(f"Saved processed query to database: {new_query.dict()}")
+            logger.debug(f"Saved processed query to database: {new_query.dict()}")
 
             # Step 4: Cache the response for future queries
             response_data = new_query.dict()
             Cache.set(query_text, response_data)
-            logger.info(f"Query processed and cached locally: {query_text}")
+            logger.debug(f"Query processed and cached locally: {query_text}")
 
         # Step 5: Return the response
         return new_query.dict()
@@ -115,7 +115,7 @@ def invoke_worker(query: QueryModel):
             InvocationType="Event",
             Payload=json.dumps(payload),
         )
-        logger.info(f"Worker Lambda invoked successfully: {WORKER_LAMBDA_NAME}")
+        logger.debug(f"Worker Lambda invoked successfully: {WORKER_LAMBDA_NAME}")
     except Exception as e:
         logger.error(f"Failed to invoke worker Lambda, attempting to use Fargate: {str(e)}")
         
@@ -147,7 +147,7 @@ def invoke_worker(query: QueryModel):
                     ]
                 }
             )
-            logger.info("Fargate container started as a fallback for Lambda failure.")
+            logger.debug("Fargate container started as a fallback for Lambda failure.")
         except Exception as fargate_error:
             logger.error(f"Failed to invoke Fargate task as fallback: {str(fargate_error)}")
             raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda or Fargate task")

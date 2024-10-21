@@ -17,7 +17,7 @@ except Exception as e:
 
 # Load the logger
  
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # ----------------------------
 # Configuration

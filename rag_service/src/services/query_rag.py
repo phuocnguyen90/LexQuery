@@ -21,7 +21,7 @@ except ImportError:
 config_loader = ConfigLoader()  
 
 # Configure logging
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Load the RAG prompt from config
 rag_prompt = config_loader.get_prompt("prompts.rag_prompt.system_prompt")

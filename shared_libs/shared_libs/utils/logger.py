@@ -7,6 +7,9 @@ import json
 from botocore.exceptions import ClientError
 from pathlib import Path
 from dotenv import load_dotenv
+import watchtower
+import re
+import sys
 
 class Logger:
     _instance = None
@@ -24,9 +27,8 @@ class Logger:
         dotenv_path = base_dir / "config/.env"
         if dotenv_path.exists():
             load_dotenv(dotenv_path)
-        
+
         # Environment configuration
-        self.LOG_TABLE_NAME = os.getenv("LOG_TABLE_NAME")
         self.AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
         self.S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
         self.DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True").lower() == "true"
@@ -46,124 +48,105 @@ class Logger:
         self.LOG_DIR.mkdir(exist_ok=True)
         self.LOCAL_LOG_FILE = self.LOG_DIR / "project_logs.json"
 
-        # Create formatter
-        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        # Create formatter with module name
+        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s (Source Module: %(source_module)s)")
 
-        # Console handler
-        console_handler = logging.StreamHandler()
+        # Console handler with UTF-8 encoding
+        console_handler = logging.StreamHandler(stream=sys.stdout)
         console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
+
+        # Set encoding for console handler (Python 3.9+)
+        if hasattr(console_handler.stream, 'reconfigure'):
+            console_handler.stream.reconfigure(encoding='utf-8')
+
         self.logger.addHandler(console_handler)
 
-        # File handler for local logs
-        file_handler = logging.FileHandler(self.LOG_DIR / "project_logs.log")
+        # File handler for local logs with UTF-8 encoding
+        file_handler = logging.FileHandler(self.LOG_DIR / "project_logs.log", encoding='utf-8')
         file_handler.setLevel(log_level)
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
-        self.logger.debug("Logger initialized successfully.")
-
-        # Initialize AWS clients
+        # CloudWatch Logs handler
         if not self.DEVELOPMENT_MODE:
             try:
-                self.dynamodb = boto3.resource("dynamodb", region_name=self.AWS_REGION)
-                self.s3 = boto3.client("s3", region_name=self.AWS_REGION)
-                self.log_table = self.dynamodb.Table(self.LOG_TABLE_NAME)
-                self.logger.debug(f"DynamoDB table '{self.LOG_TABLE_NAME}' and S3 bucket '{self.S3_BUCKET_NAME}' initialized successfully.")
+                cloudwatch_client = boto3.client('logs', region_name=self.AWS_REGION)
+
+                # Check if the log group exists, otherwise create it
+                log_group_name = "rag-legal-qa"
+                try:
+                    cloudwatch_client.describe_log_groups(logGroupNamePrefix=log_group_name)
+                except ClientError as e:
+                    if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                        cloudwatch_client.create_log_group(logGroupName=log_group_name)
+
+                # Create a CloudWatch Logs Handler
+                sanitized_log_stream_name = re.sub(r"[:*/]", "_", f"{Path(__file__).stem}/{self.logger.name}/{uuid.uuid4()}")
+                cloudwatch_handler = watchtower.CloudWatchLogHandler(
+                    log_group=log_group_name,
+                    log_stream_name=sanitized_log_stream_name,
+                    use_queues=True,
+                    create_log_group=True,
+                    boto3_client=cloudwatch_client
+                )
+                cloudwatch_handler.setLevel(log_level)
+                cloudwatch_handler.setFormatter(formatter)
+                self.logger.addHandler(cloudwatch_handler)
+                self.logger.info("CloudWatch Logs handler initialized successfully.")
             except ClientError as e:
-                self.logger.error(f"Failed to initialize AWS services: {e.response['Error']['Message']}")
-                self.dynamodb = None
-                self.s3 = None
-                self.log_table = None
-        else:
-            self.logger.debug("Running in development mode. AWS services are not initialized.")
+                self.logger.error(f"Failed to initialize CloudWatch Logs handler: {e.response['Error']['Message']}")
 
-    def get_logger(self):
-        return self.logger
+        self.logger.info("Logger initialized successfully.")
 
-    def log_event(self, event_type, message, details=None):
+    @classmethod
+    def get_logger(cls, module_name=None):
+        # Get the instance of Logger if not already created
+        if cls._instance is None:
+            cls._instance = Logger()
+
+        # Return a LoggerAdapter with the source_module information
+        return logging.LoggerAdapter(cls._instance.logger, {'source_module': module_name if module_name else 'UnknownModule'})
+
+    # Convenience methods for different log levels (Optional if you prefer direct usage)
+    def log_event(self, event_type, message, details=None, module_name=None):
         log_entry = {
-            "cache_key": str(uuid.uuid4()),
             "log_id": str(uuid.uuid4()),
             "event_type": event_type,
             "timestamp": int(time.time()),
             "message": message,
             "details": details if details else {}
         }
+        # Log the event with the source_module name
+        self.get_logger(module_name).info(json.dumps(log_entry, ensure_ascii=False))
 
-        # Try to log to DynamoDB if available
-        if self.log_table:
-            try:
-                self.logger.debug(f"Attempting to log event to DynamoDB: {log_entry}")
-                self.log_table.put_item(Item=log_entry)
-                self.logger.debug(f"Log entry successfully created in DynamoDB: {log_entry['log_id']}")
-                return
-            except ClientError as e:
-                self.logger.error(f"Failed to log event to DynamoDB: {e.response['Error']['Message']}")
+    def info(self, message, details=None, module_name=None):
+        logger = self.get_logger(module_name)
+        logger.info(message)
+        self.log_event(event_type="INFO", message=message, details=details, module_name=module_name)
 
-        # Fall back to local logging
-        self._log_to_local(log_entry)
+    def error(self, message, details=None, module_name=None):
+        logger = self.get_logger(module_name)
+        logger.error(message)
+        self.log_event(event_type="ERROR", message=message, details=details, module_name=module_name)
 
-    def _log_to_local(self, log_entry):
-        """Log locally to the file system."""
-        try:
-            self.logger.debug(f"Attempting to log event locally: {log_entry}")
-            if self.LOCAL_LOG_FILE.exists():
-                with self.LOCAL_LOG_FILE.open('r', encoding='utf-8') as f:
-                    log_data = json.load(f)
-            else:
-                log_data = []
-
-            log_data.append(log_entry)
-
-            with self.LOCAL_LOG_FILE.open('w', encoding='utf-8') as f:
-                json.dump(log_data, f, indent=2)
-
-            self.logger.debug(f"Log entry saved locally: {log_entry['log_id']}")
-        except Exception as e:
-            self.logger.error(f"Failed to log event locally: {str(e)}")
-
-    def save_logs_to_s3(self):
-        """Upload local logs to S3 if they exist and AWS services are initialized."""
-        if self.s3 and self.LOCAL_LOG_FILE.exists():
-            try:
-                timestamp = time.strftime("%Y%m%d-%H%M%S")
-                s3_key = f"logs/session_logs_{timestamp}.json"
-                with self.LOCAL_LOG_FILE.open('rb') as f:
-                    self.s3.put_object(Bucket=self.S3_BUCKET_NAME, Key=s3_key, Body=f)
-                self.logger.debug(f"Local logs saved to S3 bucket: {self.S3_BUCKET_NAME} with key: {s3_key}")
-
-                # Optionally, delete the local log file after uploading
-                self.LOCAL_LOG_FILE.unlink()
-            except ClientError as e:
-                self.logger.error(f"Failed to save logs to S3: {e.response['Error']['Message']}")
-            except Exception as e:
-                self.logger.error(f"Unexpected error while saving logs to S3: {str(e)}")
-
-    # Convenience methods for different log levels
-    def info(self, message, details=None):
-        self.logger.debug(message)
-        self.log_event(event_type="INFO", message=message, details=details)
-
-    def error(self, message, details=None):
-        self.logger.error(message)
-        self.log_event(event_type="ERROR", message=message, details=details)
-
-    def debug(self, message, details=None):
+    def debug(self, message, details=None, module_name=None):
+        logger = self.get_logger(module_name)
         if self.DEVELOPMENT_MODE:
-            self.logger.debug(message)
-        self.log_event(event_type="DEBUG", message=message, details=details)
+            logger.debug(message)
+        self.log_event(event_type="DEBUG", message=message, details=details, module_name=module_name)
 
-    def warning(self, message, details=None):
-        self.logger.warning(message)
-        self.log_event(event_type="WARNING", message=message, details=details)
+    def warning(self, message, details=None, module_name=None):
+        logger = self.get_logger(module_name)
+        logger.warning(message)
+        self.log_event(event_type="WARNING", message=message, details=details, module_name=module_name)
 
 # Example usage in another module
 if __name__ == "__main__":
-    # Initialize logger instance
-    logger_instance = Logger().get_logger()
+    # Initialize logger instance by module name
+    logger_instance = Logger.get_logger(module_name=__name__)
 
-    logger_instance.info("This is an info message")
-    logger_instance.debug("This is a debug message")
-    logger_instance.warning("This is a warning message")
-    logger_instance.error("This is an error message")
+    logger_instance.info("This is an info message from main module with Unicode: thử nghiệm")
+    logger_instance.debug("This is a debug message from main module with Unicode: 🚀")
+    logger_instance.warning("This is a warning message from main module with Unicode: こんにちは")
+    logger_instance.error("This is an error message from main module with Unicode: Привет")

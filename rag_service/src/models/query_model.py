@@ -16,7 +16,7 @@ from shared_libs.utils.logger import Logger
 config = ConfigLoader()
 
 # Initialize logger
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 CACHE_TABLE_NAME = os.environ.get("CACHE_TABLE_NAME", "CacheTable")
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"

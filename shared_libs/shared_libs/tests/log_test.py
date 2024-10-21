@@ -32,7 +32,7 @@ class TestLogger(unittest.TestCase):
         mock_table.put_item.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
 
         # Create Logger instance with DynamoDB enabled
-        logger = Logger(__name__)
+        logger = Logger.get_logger(module_name=__name__)
         logger.log_table = mock_table  # Assigning the mocked table to logger
 
         # Log an event

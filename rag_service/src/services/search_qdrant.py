@@ -15,7 +15,7 @@ except ImportError:
 
 
 # Configure logging
-logger = Logger(__name__)
+logger = Logger.get_logger(module_name=__name__)
 
 # Load configuration using ConfigLoader
 config_loader = ConfigLoader()

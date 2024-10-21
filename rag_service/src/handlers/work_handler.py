@@ -13,7 +13,7 @@ from models.query_model import QueryModel
 from services.query_rag import query_rag
 
 # Initialize the logger
-logger = Logger().get_logger()
+logger = Logger().get_logger(module_name=__name__)
 
 # Load configuration and LLM provider
 config = ConfigLoader()
@@ -54,8 +54,8 @@ def invoke_rag(query_item: QueryModel):
         if cached_response:
             logger.info("Cache hit for query", {"query_text": query_text})
 
-            # Verify that the cached response has all the required fields, especially response_text
-            if "response_text" in cached_response and cached_response["response_text"]:
+            # Verify that the cached response has all the required fields, especially answer_text
+            if "answer_text" in cached_response and cached_response["answer_text"]:
                 logger.info("Returning cached response", {"query_text": query_text})
                 return QueryModel(**cached_response)
             else:
