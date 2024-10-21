@@ -1,92 +1,89 @@
 import os
+import logging
 import boto3
 import time
 import uuid
 import json
-import logging
 from botocore.exceptions import ClientError
 from pathlib import Path
-
-# Environment Settings
-LOG_TABLE_NAME = os.getenv("LOG_TABLE_NAME", "LogTable")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True").lower() == "true"
-
-# AWS Services for Production
-if not DEVELOPMENT_MODE:
-    dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
-    s3 = boto3.client("s3", region_name=AWS_REGION)
-    S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
-
-# Local log file setup for Development Environment
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
-LOCAL_LOG_FILE = LOG_DIR / "session_logs.json"
-
-# Base logging configuration
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
+from dotenv import load_dotenv
 
 class Logger:
-    def __init__(self, name: str):
-        self.logger = self.get_logger(name)
+    _instance = None
 
-        if not DEVELOPMENT_MODE:
-            # Validate that the DynamoDB table exists for logging
+    def __new__(cls, *args, **kwargs):
+        # Singleton pattern to ensure only one instance of the logger
+        if not cls._instance:
+            cls._instance = super(Logger, cls).__new__(cls)
+            cls._instance._initialize_logger()
+        return cls._instance
+
+    def _initialize_logger(self):
+        # Load environment variables from .env file
+        base_dir = Path(__file__).resolve().parent.parent
+        dotenv_path = base_dir / "config/.env"
+        if dotenv_path.exists():
+            load_dotenv(dotenv_path)
+        
+        # Environment configuration
+        self.LOG_TABLE_NAME = os.getenv("LOG_TABLE_NAME")
+        self.AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+        self.S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
+        self.DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "True").lower() == "true"
+
+        # Create logger
+        self.logger = logging.getLogger("ProjectLogger")
+
+        if self.logger.hasHandlers():
+            self.logger.handlers.clear()
+
+        # Set logger level based on environment
+        log_level = logging.DEBUG if self.DEVELOPMENT_MODE else logging.INFO
+        self.logger.setLevel(log_level)
+
+        # Define log file path
+        self.LOG_DIR = Path("logs")
+        self.LOG_DIR.mkdir(exist_ok=True)
+        self.LOCAL_LOG_FILE = self.LOG_DIR / "project_logs.json"
+
+        # Create formatter
+        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+
+        # File handler for local logs
+        file_handler = logging.FileHandler(self.LOG_DIR / "project_logs.log")
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+
+        self.logger.debug("Logger initialized successfully.")
+
+        # Initialize AWS clients
+        if not self.DEVELOPMENT_MODE:
             try:
-                self.log_table = dynamodb.Table(LOG_TABLE_NAME)
-                # Attempt to load the table to verify it exists
-                self.log_table.load()
-                print(f"Logger initialized with DynamoDB table: {LOG_TABLE_NAME}")
+                self.dynamodb = boto3.resource("dynamodb", region_name=self.AWS_REGION)
+                self.s3 = boto3.client("s3", region_name=self.AWS_REGION)
+                self.log_table = self.dynamodb.Table(self.LOG_TABLE_NAME)
+                self.logger.debug(f"DynamoDB table '{self.LOG_TABLE_NAME}' and S3 bucket '{self.S3_BUCKET_NAME}' initialized successfully.")
             except ClientError as e:
-                if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                    print(f"Error: DynamoDB table '{LOG_TABLE_NAME}' not found.")
-                    raise e
-                else:
-                    print(f"Unexpected error accessing DynamoDB: {e}")
-                    raise e
+                self.logger.error(f"Failed to initialize AWS services: {e.response['Error']['Message']}")
+                self.dynamodb = None
+                self.s3 = None
+                self.log_table = None
+        else:
+            self.logger.debug("Running in development mode. AWS services are not initialized.")
 
-    @staticmethod
-    def get_logger(name: str) -> logging.Logger:
-        """
-        Get a logger instance with handlers configured for the environment.
-
-        :param name: Name of the logger, typically the module's __name__.
-        :return: Configured logger instance.
-        """
-        logger = logging.getLogger(name)
-
-        if not logger.hasHandlers():
-            if DEVELOPMENT_MODE:
-                # Console Handler for Development
-                console_handler = logging.StreamHandler()
-                console_handler.setFormatter(log_formatter)
-                console_handler.setLevel(logging.DEBUG)
-
-                # File Handler for Development
-                file_handler = logging.FileHandler(LOG_DIR / "app_debug.log")
-                file_handler.setFormatter(log_formatter)
-                file_handler.setLevel(logging.DEBUG)
-
-                # Add handlers to the logger
-                logger.setLevel(logging.DEBUG)
-                logger.addHandler(console_handler)
-                logger.addHandler(file_handler)
-            else:
-                # Console Handler for Production
-                console_handler = logging.StreamHandler()
-                console_handler.setFormatter(log_formatter)
-                console_handler.setLevel(logging.INFO)
-
-                # Add handlers to the logger
-                logger.setLevel(logging.INFO)
-                logger.addHandler(console_handler)
-
-        return logger
+    def get_logger(self):
+        return self.logger
 
     def log_event(self, event_type, message, details=None):
-        """Log an event to DynamoDB or local log file based on the environment."""
         log_entry = {
+            "cache_key": str(uuid.uuid4()),
             "log_id": str(uuid.uuid4()),
             "event_type": event_type,
             "timestamp": int(time.time()),
@@ -94,71 +91,79 @@ class Logger:
             "details": details if details else {}
         }
 
-        if not DEVELOPMENT_MODE:
-            # Log to DynamoDB in production
+        # Try to log to DynamoDB if available
+        if self.log_table:
             try:
-                print(f"Attempting to log to DynamoDB: {log_entry}")
+                self.logger.debug(f"Attempting to log event to DynamoDB: {log_entry}")
                 self.log_table.put_item(Item=log_entry)
-                self.logger.info(f"Log entry created in DynamoDB: {log_entry['log_id']}")
+                self.logger.debug(f"Log entry successfully created in DynamoDB: {log_entry['log_id']}")
+                return
             except ClientError as e:
                 self.logger.error(f"Failed to log event to DynamoDB: {e.response['Error']['Message']}")
-        else:
-            # Log locally in development mode
+
+        # Fall back to local logging
+        self._log_to_local(log_entry)
+
+    def _log_to_local(self, log_entry):
+        """Log locally to the file system."""
+        try:
+            self.logger.debug(f"Attempting to log event locally: {log_entry}")
+            if self.LOCAL_LOG_FILE.exists():
+                with self.LOCAL_LOG_FILE.open('r', encoding='utf-8') as f:
+                    log_data = json.load(f)
+            else:
+                log_data = []
+
+            log_data.append(log_entry)
+
+            with self.LOCAL_LOG_FILE.open('w', encoding='utf-8') as f:
+                json.dump(log_data, f, indent=2)
+
+            self.logger.debug(f"Log entry saved locally: {log_entry['log_id']}")
+        except Exception as e:
+            self.logger.error(f"Failed to log event locally: {str(e)}")
+
+    def save_logs_to_s3(self):
+        """Upload local logs to S3 if they exist and AWS services are initialized."""
+        if self.s3 and self.LOCAL_LOG_FILE.exists():
             try:
-                if LOCAL_LOG_FILE.exists():
-                    with LOCAL_LOG_FILE.open('r', encoding='utf-8') as f:
-                        log_data = json.load(f)
-                else:
-                    log_data = []
+                timestamp = time.strftime("%Y%m%d-%H%M%S")
+                s3_key = f"logs/session_logs_{timestamp}.json"
+                with self.LOCAL_LOG_FILE.open('rb') as f:
+                    self.s3.put_object(Bucket=self.S3_BUCKET_NAME, Key=s3_key, Body=f)
+                self.logger.debug(f"Local logs saved to S3 bucket: {self.S3_BUCKET_NAME} with key: {s3_key}")
 
-                log_data.append(log_entry)
-
-                with LOCAL_LOG_FILE.open('w', encoding='utf-8') as f:
-                    json.dump(log_data, f, indent=2)
-
-                self.logger.info(f"Log entry saved locally: {log_entry['log_id']}")
-            except Exception as e:
-                self.logger.error(f"Failed to log event locally: {str(e)}")
-
-    @staticmethod
-    def save_logs_to_s3():
-        """Save local logs to S3 at the end of the session if in production."""
-        if not DEVELOPMENT_MODE:
-            try:
-                if LOCAL_LOG_FILE.exists():
-                    timestamp = time.strftime("%Y%m%d-%H%M%S")
-                    s3_key = f"logs/session_logs_{timestamp}.json"
-                    with LOCAL_LOG_FILE.open('rb') as f:
-                        s3.put_object(Bucket=S3_BUCKET_NAME, Key=s3_key, Body=f)
-                    logging.getLogger(__name__).info(f"Local logs saved to S3 bucket: {S3_BUCKET_NAME} with key: {s3_key}")
-
-                    # Optionally, delete the local log file after uploading
-                    LOCAL_LOG_FILE.unlink()
-                else:
-                    logging.getLogger(__name__).info("No local log file found to save to S3.")
+                # Optionally, delete the local log file after uploading
+                self.LOCAL_LOG_FILE.unlink()
             except ClientError as e:
-                logging.getLogger(__name__).error(f"Failed to save logs to S3: {e.response['Error']['Message']}")
-        else:
-            logging.getLogger(__name__).info("Skipping S3 upload since the environment is not production.")
+                self.logger.error(f"Failed to save logs to S3: {e.response['Error']['Message']}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error while saving logs to S3: {str(e)}")
 
-    # Convenience methods for logging at different levels
+    # Convenience methods for different log levels
     def info(self, message, details=None):
-        """Helper method to log an info event."""
-        self.logger.info(message)
+        self.logger.debug(message)
         self.log_event(event_type="INFO", message=message, details=details)
 
     def error(self, message, details=None):
-        """Helper method to log an error event."""
         self.logger.error(message)
         self.log_event(event_type="ERROR", message=message, details=details)
 
     def debug(self, message, details=None):
-        """Helper method to log a debug event."""
-        if DEVELOPMENT_MODE:  # Debug logs should only be active in Development mode
+        if self.DEVELOPMENT_MODE:
             self.logger.debug(message)
         self.log_event(event_type="DEBUG", message=message, details=details)
 
     def warning(self, message, details=None):
-        """Helper method to log a warning event."""
         self.logger.warning(message)
         self.log_event(event_type="WARNING", message=message, details=details)
+
+# Example usage in another module
+if __name__ == "__main__":
+    # Initialize logger instance
+    logger_instance = Logger().get_logger()
+
+    logger_instance.info("This is an info message")
+    logger_instance.debug("This is a debug message")
+    logger_instance.warning("This is a warning message")
+    logger_instance.error("This is an error message")

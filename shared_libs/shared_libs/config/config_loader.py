@@ -48,6 +48,8 @@ class ConfigLoader:
             if dotenv_path.exists():
                 load_dotenv(dotenv_path)
                 logging.info(f"Loaded environment variables from '{dotenv_path}'.")
+                logging.debug(f"Environment variables loaded: {dict(os.environ)}")
+
             else:
                 logging.warning(f".env file not found at '{dotenv_path}'")
         except Exception as e:

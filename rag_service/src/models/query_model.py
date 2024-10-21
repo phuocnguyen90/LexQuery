@@ -5,11 +5,12 @@ from botocore.exceptions import ClientError
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import time
-import uuid
+from hashlib import md5
 import json
 from pathlib import Path
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
+
 
 # Environment variables
 config = ConfigLoader()
@@ -38,12 +39,18 @@ LOCAL_QUERY_FILE = LOCAL_STORAGE_DIR / "query_data.json"
 
 
 class QueryModel(BaseModel):
-    cache_key: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    cache_key: str = Field(default_factory=lambda: None)  # No default generation here
     create_time: int = Field(default_factory=lambda: int(time.time()))
     query_text: str
     answer_text: Optional[str] = None
     sources: List[str] = Field(default_factory=list)
     is_complete: bool = False
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.cache_key:
+            # Generate cache_key based on query_text if not already provided
+            self.cache_key = md5(self.query_text.encode('utf-8')).hexdigest()
 
     @classmethod
     def get_table(cls):
@@ -147,4 +154,4 @@ class QueryModel(BaseModel):
     def as_ddb_item(self):
         """Convert the query model to a DynamoDB-compatible format."""
         logger.debug(f"Converting QueryModel to DynamoDB item format for cache_key: {self.cache_key}")
-        return {k: v for k, v in self.dict().items() if v is not None}
+        return {k: v for k, v in self.dict().items() if v not in [None, "", [], {}]}

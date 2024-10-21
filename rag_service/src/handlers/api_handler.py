@@ -171,6 +171,9 @@ def local_test_submit_query(request: SubmitQueryRequest):
     logger.info("Local testing endpoint called")
 
     # Check the cache for the query
+    cache_key = Cache._generate_cache_key(query_text)
+    logger.debug(f"Checking cache for key: {cache_key}")
+
     cached_response = Cache.get(query_text)
     if cached_response:
         logger.info("Cache hit during local testing")
@@ -189,3 +192,4 @@ def local_test_submit_query(request: SubmitQueryRequest):
     logger.info("Query processed and cached during local testing")
 
     return response_data
+

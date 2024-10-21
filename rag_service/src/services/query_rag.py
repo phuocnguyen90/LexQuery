@@ -70,22 +70,25 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
     if provider is None:
         provider = llm_provider
 
+    # Normalize query text for caching
+    normalized_query = query_text.strip().lower()
+
     # Step 1: Check Cache for an Existing Response
-    logger.debug(f"Checking cache for query: {query_text}")
-    cached_response = Cache.get(query_text.strip().lower())
+    logger.debug(f"Checking cache for query: {normalized_query}")
+    cached_response = Cache.get(normalized_query)
     if cached_response:
         logger.info(f"Cache hit for query: {query_text}")
-        
-        # Verify if the response_text is available
-        if cached_response.get("response_text"):
+
+        # Verify if the response_text is available in cache and properly structured
+        if "response_text" in cached_response and cached_response["response_text"]:
             logger.info(f"Returning cached response for query: {query_text}")
             return QueryResponse(
-                query_text=cached_response["query_text"],
-                response_text=cached_response["response_text"],
-                sources=cached_response["sources"]
+                query_text=cached_response.get("query_text", query_text),
+                response_text=cached_response.get("response_text", ""),
+                sources=cached_response.get("sources", [])
             )
         else:
-            logger.warning(f"Cache hit but no response_text found for query: {query_text}, generating a new response.")
+            logger.warning(f"Cache hit but no valid response_text found for query: {query_text}, generating a new response.")
 
     # Step 2: Retrieve similar documents using Qdrant
     logger.debug(f"Retrieving documents related to query: {query_text}")
@@ -101,7 +104,7 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
     # Step 3: Combine retrieved documents to form context for LLM
     context = "\n\n------------------------------------------------------\n\n".join([
         f"Mã tài liệu: {doc['record_id']}\nNguồn: {doc['source']}\nNội dung: {doc['content']}"
-        for doc in retrieved_docs if doc['content']
+        for doc in retrieved_docs if doc.get('content')
     ])
     logger.info(f"Retrieved documents combined to form context for query: {query_text}")
 
@@ -132,7 +135,7 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
 
     # Step 7: Add citations to the response based on retrieved document IDs
     if retrieved_docs:
-        citation_texts = [f"[Mã tài liệu: {doc['record_id']}]" for doc in retrieved_docs if doc['content']]
+        citation_texts = [f"[Mã tài liệu: {doc['record_id']}]" for doc in retrieved_docs if doc.get('content')]
         if citation_texts:
             response_text += "\n\nNguồn tham khảo: " + ", ".join(citation_texts)
 
@@ -140,21 +143,24 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
     sources = [doc['record_id'] for doc in retrieved_docs]
 
     # Step 9: Cache the response for future queries
-    normalized_query = query_text.strip().lower()
     cache_data = {
         "query_text": query_text,
         "response_text": response_text,
         "sources": sources,
         "timestamp": int(time.time())  # Adding timestamp for potential TTL handling
     }
-    Cache.set(normalized_query, cache_data)
-    logger.info(f"Cached response for query: {query_text}")
+    try:
+        Cache.set(normalized_query, cache_data)
+        logger.info(f"Cached response for query: {query_text}")
+    except Exception as cache_error:
+        logger.error(f"Failed to cache the response for query: {query_text}. Error: {str(cache_error)}")
 
     return QueryResponse(
         query_text=query_text,
         response_text=response_text,
         sources=sources
     )
+
 
 
 if __name__ == "__main__":

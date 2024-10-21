@@ -1,3 +1,4 @@
+# rag_service\src\handlers\work_handler.py
 import os
 import time
 from shared_libs.config.config_loader import ConfigLoader
@@ -12,7 +13,7 @@ from models.query_model import QueryModel
 from services.query_rag import query_rag
 
 # Initialize the logger
-logger = Logger(__name__)
+logger = Logger().get_logger()
 
 # Load configuration and LLM provider
 config = ConfigLoader()
@@ -48,16 +49,24 @@ def invoke_rag(query_item: QueryModel):
     query_text = query_item.query_text
 
     # Step 1: Check Cache for Existing Response
-    cached_response = Cache.get(query_text)
-    if cached_response:
-        logger.info("Cache hit for query", {"query_text": query_text})
+    try:
+        cached_response = Cache.get(query_text)
+        if cached_response:
+            logger.info("Cache hit for query", {"query_text": query_text})
 
-        # Check if response_text is valid in cache
-        if cached_response.get("response_text"):
-            logger.info("Returning cached response", {"query_text": query_text})
-            return QueryModel(**cached_response)
+            # Verify that the cached response has all the required fields, especially response_text
+            if "response_text" in cached_response and cached_response["response_text"]:
+                logger.info("Returning cached response", {"query_text": query_text})
+                return QueryModel(**cached_response)
+            else:
+                logger.warning(
+                    "Cache hit but response_text is missing or incomplete. Proceeding to generate a new response.",
+                    {"query_text": query_text}
+                )
         else:
-            logger.warning("Cache hit but response_text is missing. Proceeding to generate a new response.", {"query_text": query_text})
+            logger.info("No cache found for query, proceeding to generate a new response.", {"query_text": query_text})
+    except Exception as e:
+        logger.error("Failed to retrieve cache, proceeding without cache.", {"query_text": query_text, "error": str(e)})
 
     # Step 2: No valid cache found or no response in cached data - Proceed with RAG
     logger.info("No valid cache found, invoking RAG", {"query_text": query_text})
@@ -72,8 +81,11 @@ def invoke_rag(query_item: QueryModel):
     if query_item.answer_text:
         cache_data = query_item.dict()
         cache_data["timestamp"] = int(time.time())  # Add a timestamp for TTL tracking
-        Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
-        logger.debug("Cached response for future use", {"query_text": query_item.query_text})
+        try:
+            Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
+            logger.info("Cached response for future use", {"query_text": query_item.query_text})
+        except Exception as e:
+            logger.error("Failed to cache the response.", {"query_text": query_item.query_text, "error": str(e)})
     else:
         logger.warning("Incomplete response, not caching", {"query_text": query_item.query_text})
 
@@ -81,11 +93,12 @@ def invoke_rag(query_item: QueryModel):
     if query_item.is_complete:
         try:
             query_item.put_item()
-            logger.debug("Query processed and stored successfully", {"query_text": query_item.query_text})
+            logger.info("Query processed and stored successfully", {"query_text": query_item.query_text})
         except Exception as e:
             logger.error("Failed to store the processed query in DynamoDB", {"query_text": query_item.query_text, "error": str(e)})
 
     return query_item
+
 
 def main():
     """
@@ -93,7 +106,7 @@ def main():
     """
     logger.info("Running example RAG call.")
     query_item = QueryModel(
-        query_text="thủ tục thay đổi người thừa kế?"
+        query_text="Tôi có thể đặt tên doanh nghiệp bầng tiếng Anh được không?"
     )
     response = invoke_rag(query_item)
     print(f"Received: {response}")
