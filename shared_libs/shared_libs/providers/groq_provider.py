@@ -1,8 +1,10 @@
 # src/providers/groq_provider.py
 
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any
-from groq import Groq 
+from groq import Groq
+from functools import partial
 from .api_provider import APIProvider
 
 # Configure logging
@@ -37,22 +39,28 @@ class GroqProvider(APIProvider):
             logger.error(f"Failed to initialize GroqProvider: {e}")
             raise
 
-    def send_single_message(self, prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:
+    async def send_single_message(self, prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:
         """
-        Send a single prompt to the Groq API and retrieve the response.
+        Asynchronously send a single prompt to the Groq API and retrieve the response.
 
         :param prompt: The prompt to send to Groq.
         :param stop_sequence: Optional list of stop sequences to terminate the LLM response.
         :return: The response content from Groq or None if the call fails.
         """
+        loop = asyncio.get_event_loop()
         try:
             logger.debug("Sending single prompt to Groq API.")
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=self.max_output_tokens,
-                stop=stop_sequence
+            # Run the blocking API call in a thread pool
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self.client.chat.completions.create,
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_output_tokens,
+                    stop=stop_sequence
+                )
             )
             logger.debug("Received response from Groq API.")
 
@@ -73,28 +81,33 @@ class GroqProvider(APIProvider):
             logger.error(f"Error during Groq API call: {e}")
             return None
 
-    def send_multi_turn_message(self, conversation_history: List[Dict[str, str]], prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:
+    async def send_multi_turn_message(self, conversation_history: List[Dict[str, str]], prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:
         """
-        Send a multi-turn conversation to the Groq API, including conversation history.
+        Asynchronously send a multi-turn conversation to the Groq API, including conversation history.
 
-        :param conversation_history: List of previous messages (each with a "role" and "content").
-                                     The "role" is either "user" or "assistant".
-        :param prompt: The current prompt or user input to send to Groq. This will be appended to the conversation history.
+        :param conversation_history: List of previous messages.
+        :param prompt: The current prompt or user input to send to Groq.
         :param stop_sequence: Optional list of stop sequences to terminate the LLM response.
         :return: The response content from Groq or None if the call fails.
         """
+        loop = asyncio.get_event_loop()
         try:
             # Append the current prompt to the conversation history
             conversation_history.append({"role": "user", "content": prompt})
 
             logger.debug(f"Sending the following conversation history to Groq API: {conversation_history}")
 
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=conversation_history,
-                temperature=self.temperature,
-                max_tokens=self.max_output_tokens,
-                stop=stop_sequence
+            # Run the blocking API call in a thread pool
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self.client.chat.completions.create,
+                    model=self.model_name,
+                    messages=conversation_history,
+                    temperature=self.temperature,
+                    max_tokens=self.max_output_tokens,
+                    stop=stop_sequence
+                )
             )
 
             logger.debug("Received response from Groq API.")
@@ -119,18 +132,24 @@ class GroqProvider(APIProvider):
             logger.error(f"Error during Groq API call: {e}")
             return None
 
-    def create_embedding(self, text: str) -> Optional[List[float]]:
+    async def create_embedding(self, text: str) -> Optional[List[float]]:
         """
-        Create an embedding for the given text using the Groq embedding model.
+        Asynchronously create an embedding for the given text using the Groq embedding model.
 
         :param text: The input text to create an embedding for.
         :return: A list representing the embedding vector or None if the call fails.
         """
+        loop = asyncio.get_event_loop()
         try:
             logger.debug("Sending request to Groq API for embedding.")
-            response = self.client.embeddings.create(
-                model=self.embedding_model_name,
-                input=text
+            # Run the blocking API call in a thread pool
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self.client.embeddings.create,
+                    model=self.embedding_model_name,
+                    input=text
+                )
             )
             logger.debug("Received response from Groq API for embedding.")
 

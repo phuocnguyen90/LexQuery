@@ -2,6 +2,7 @@
 
 import boto3
 import os
+import logging
 from botocore.exceptions import ClientError
 
 # AWS Configuration
@@ -19,7 +20,7 @@ def validate_dynamodb(table_name):
     try:
         table = dynamodb.Table(table_name)
         table.load()  # This will trigger a resource load and fail if the table does not exist
-        print(f"DynamoDB table '{table_name}' already exists.")
+        logging.debug(f"DynamoDB table '{table_name}' already exists.")
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceNotFoundException':
             print(f"DynamoDB table '{table_name}' not found. Creating a new one.")
@@ -41,11 +42,11 @@ def validate_dynamodb(table_name):
                     BillingMode='PAY_PER_REQUEST'  # Use on-demand billing
                 )
                 table.wait_until_exists()  # Wait until the table is created
-                print(f"DynamoDB table '{table_name}' created successfully.")
+                logging.debug(f"DynamoDB table '{table_name}' created successfully.")
             except ClientError as create_error:
-                print(f"Failed to create DynamoDB table '{table_name}': {create_error}")
+                logging.debug(f"Failed to create DynamoDB table '{table_name}': {create_error}")
         else:
-            print(f"Unexpected error while accessing DynamoDB: {e}")
+            logging.debug(f"Unexpected error while accessing DynamoDB: {e}")
 
 
 def validate_s3():
@@ -53,11 +54,11 @@ def validate_s3():
     try:
         # Check if the bucket exists by attempting to access its location
         s3.head_bucket(Bucket=S3_BUCKET_NAME)
-        print(f"S3 bucket '{S3_BUCKET_NAME}' already exists.")
+        logging.debug(f"S3 bucket '{S3_BUCKET_NAME}' already exists.")
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == '404':
-            print(f"S3 bucket '{S3_BUCKET_NAME}' not found. Creating a new one.")
+            logging.debug(f"S3 bucket '{S3_BUCKET_NAME}' not found. Creating a new one.")
             try:
                 if AWS_REGION == 'us-east-1':
                     # No LocationConstraint required for us-east-1
@@ -72,8 +73,8 @@ def validate_s3():
                             'LocationConstraint': AWS_REGION
                         }
                     )
-                print(f"S3 bucket '{S3_BUCKET_NAME}' created successfully.")
+                logging.debug(f"S3 bucket '{S3_BUCKET_NAME}' created successfully.")
             except ClientError as create_error:
-                print(f"Failed to create S3 bucket '{S3_BUCKET_NAME}': {create_error}")
+                logging.debug(f"Failed to create S3 bucket '{S3_BUCKET_NAME}': {create_error}")
         else:
-            print(f"Unexpected error while accessing S3 bucket: {e}")
+            logging.debug(f"Unexpected error while accessing S3 bucket: {e}")
