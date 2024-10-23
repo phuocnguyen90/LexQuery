@@ -5,7 +5,7 @@ import logging
 import boto3
 import redis
 from botocore.exceptions import ClientError
-from utils.logger import Logger
+from shared_libs.utils.logger import Logger
 # Configure logger
 
 logger = Logger.get_logger(module_name=__name__)

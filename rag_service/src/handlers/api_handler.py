@@ -2,11 +2,13 @@
 import os
 import uvicorn
 import boto3
+import aioboto3
 from botocore.exceptions import ClientError
 import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from mangum import Mangum
+import uuid
 
 # Import from shared_libs
 from shared_libs.config.config_loader import ConfigLoader
@@ -26,7 +28,12 @@ logger = Logger.get_logger(module_name=__name__)
 
 # Environment variables
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
 WORKER_LAMBDA_NAME = os.environ.get("WORKER_LAMBDA_NAME", "RagWorker")
+
+lambda_client = boto3.client("lambda", region_name=AWS_REGION)
+ecs_client = boto3.client("ecs", region_name=AWS_REGION)
+sqs_client = boto3.client('sqs', region_name=AWS_REGION)
 
 # Load the LLM provider (abstracted utility function handles fallbacks)
 llm_provider = load_llm_provider()
@@ -43,115 +50,71 @@ class SubmitQueryRequest(BaseModel):
 
 # API Endpoints
 @app.get("/")
-def index():
+async def index():
     return {"Hello": "World"}
 
 @app.get("/get_query")
-def get_query_endpoint(query_id: str):
+async def get_query_endpoint(query_id: str):
     logger.debug(f"Fetching query with ID: {query_id}")
     query = QueryModel.get_item(query_id)
     if query:
-        return query
+        return {
+            "query_id": query.query_id,
+            "query_text": query.query_text,
+            "answer_text": query.answer_text,
+            "is_complete": query.is_complete,
+            "sources": query.sources,
+        }
     logger.warning(f"Query not found for ID: {query_id}")
     raise HTTPException(status_code=404, detail="Query not found")
 
+
 @app.post("/submit_query")
-def submit_query_endpoint(request: SubmitQueryRequest):
-    """
-    Endpoint for handling query submission. Checks cache, processes using RAG, and caches response.
-    """
+async def submit_query_endpoint(request: SubmitQueryRequest):
     try:
         query_text = request.query_text
-        logger.info(f"Received submit query request: {query_text}")
+        query_id = str(uuid.uuid4())  # Generate unique query_id
+        logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
         # Step 1: Check Cache for Existing Response
-        cached_response = Cache.get(query_text)
+        cached_response = await Cache.get(query_text)
         if cached_response:
             logger.info(f"Cache hit for query: {query_text}")
-            return cached_response
+            return {"query_id": cached_response.get("query_id"), **cached_response}
 
         # Step 2: Process the Query
-        new_query = QueryModel(query_text=query_text)
-        if WORKER_LAMBDA_NAME:
-            # Make an async call to the worker Lambda (for production use case)
-            new_query.put_item()  # Save initial query item to the database
-            invoke_worker(new_query)
-            logger.debug("Worker Lambda invoked asynchronously")
-        else:
-            # Handle the RAG processing locally (for development use case)
-            logger.info("Processing query locally")
-            query_response = query_rag(query_text, llm_provider)
-            new_query.answer_text = query_response.response_text
-            new_query.sources = query_response.sources
-            new_query.is_complete = True
+        new_query = QueryModel(query_id=query_id, query_text=query_text)
+        await new_query.put_item()  
 
-            # Step 3: Save the updated query item to the database
-            new_query.put_item()
-            logger.debug(f"Saved processed query to database: {new_query.dict()}")
+        # Enqueue the query for processing
+        await invoke_worker(new_query)
 
-            # Step 4: Cache the response for future queries
-            response_data = new_query.dict()
-            Cache.set(query_text, response_data)
-            logger.debug(f"Query processed and cached locally: {query_text}")
-
-        # Step 5: Return the response
-        return new_query.dict()
+        # Step 3: Return the query_id to the client
+        return {
+            "query_id": query_id,
+            "message": "Your query has been received and is being processed."
+        }
 
     except Exception as exc:
         logger.error(f"Failed to handle submit_query endpoint: {str(exc)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-lambda_client = boto3.client("lambda", region_name=AWS_REGION)
-ecs_client = boto3.client("ecs", region_name=AWS_REGION)
 
-def invoke_worker(query: QueryModel):
-    payload = query.dict()
-
-    # Try invoking Lambda asynchronously
-    try:
-        response = lambda_client.invoke(
-            FunctionName=WORKER_LAMBDA_NAME,
-            InvocationType="Event",
-            Payload=json.dumps(payload),
-        )
-        logger.debug(f"Worker Lambda invoked successfully: {WORKER_LAMBDA_NAME}")
-    except Exception as e:
-        logger.error(f"Failed to invoke worker Lambda, attempting to use Fargate: {str(e)}")
-        
-        # Fallback to Fargate if Lambda invocation fails
-        try:
-            response = ecs_client.run_task(
-                cluster='<your_cluster_name>',
-                launchType='FARGATE',
-                taskDefinition='<your_task_definition>',
-                count=1,
-                networkConfiguration={
-                    'awsvpcConfiguration': {
-                        'subnets': ['<subnet_id>'],
-                        'assignPublicIp': 'ENABLED'
-                    }
-                },
-                overrides={
-                    'containerOverrides': [
-                        {
-                            'name': '<your_container_name>',
-                            'command': ["python", "lambda_worker.py"],
-                            'environment': [
-                                {
-                                    'name': 'QUERY_PAYLOAD',
-                                    'value': json.dumps(payload)
-                                }
-                            ]
-                        }
-                    ]
-                }
-            )
-            logger.debug("Fargate container started as a fallback for Lambda failure.")
-        except Exception as fargate_error:
-            logger.error(f"Failed to invoke Fargate task as fallback: {str(fargate_error)}")
-            raise HTTPException(status_code=500, detail="Failed to invoke worker Lambda or Fargate task")
-
+async def invoke_worker(query: QueryModel):
+    session = aioboto3.Session()
+    async with session.client('sqs', region_name=AWS_REGION) as sqs_client:
+            payload = query.dict()
+            message_body = json.dumps(payload)
+            try:
+                response = await sqs_client.send_message(
+                    QueueUrl=SQS_QUEUE_URL,
+                    MessageBody=message_body
+                )
+                logger.debug(f"Message sent to SQS: {response.get('MessageId')}")
+            except Exception as e:
+                logger.error(f"Failed to send message to SQS: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to enqueue query for processing")
 
 # Local Development Function to Test API Endpoints
 if __name__ == "__main__":
@@ -162,7 +125,7 @@ if __name__ == "__main__":
 
 # Add a local testing endpoint for convenience
 @app.post("/local_test_submit_query")
-def local_test_submit_query(request: SubmitQueryRequest):
+async def local_test_submit_query(request: SubmitQueryRequest):
     """
     This endpoint is for local testing only. It allows you to submit a query
     and get an immediate response without relying on the worker Lambda.
@@ -174,13 +137,13 @@ def local_test_submit_query(request: SubmitQueryRequest):
     cache_key = Cache._generate_cache_key(query_text)
     logger.debug(f"Checking cache for key: {cache_key}")
 
-    cached_response = Cache.get(query_text)
+    cached_response = await Cache.get(query_text)
     if cached_response:
         logger.info("Cache hit during local testing")
         return cached_response
 
     # Process the query using RAG (local)
-    query_response = query_rag(query_text, llm_provider)
+    query_response = await query_rag(query_text, llm_provider)
     response_data = {
         "query_text": query_text,
         "response_text": query_response.response_text,
@@ -188,8 +151,7 @@ def local_test_submit_query(request: SubmitQueryRequest):
     }
 
     # Store response in cache
-    Cache.set(query_text, response_data)
+    await Cache.set(query_text, response_data)
     logger.info("Query processed and cached during local testing")
 
     return response_data
-

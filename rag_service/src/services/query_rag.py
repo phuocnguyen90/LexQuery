@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 import re
 import time
+import asyncio
 
 # Imports from shared_libs
 from shared_libs.providers import ProviderFactory  # Use the provider factory to dynamically get providers
@@ -16,7 +17,8 @@ try:
 except ImportError:
     from search_qdrant import search_qdrant    # Relative import for direct script testing
 
-
+# Cache TTL for responses
+CACHE_TTL = 1800  # 30 minutes
 # Load configuration
 config_loader = ConfigLoader()  
 
@@ -63,25 +65,25 @@ def validate_citation(response: str) -> bool:
     return bool(re.search(pattern, response))
 
 # Existing query_rag function with added logging for verification
-def query_rag(query_text: str, provider=None, conversation_history: Optional[List[str]] = None) -> QueryResponse:
+async def query_rag(query_text: str, provider=None, conversation_history: Optional[List[str]] = None) -> QueryResponse:
     """
     Perform Retrieval-Augmented Generation (RAG) to answer the user's query.
     """
     if provider is None:
         provider = llm_provider
 
-    # Normalize query text for caching
+    # Normalize query text before caching
     normalized_query = query_text.strip().lower()
 
     # Step 1: Check Cache for an Existing Response
-    logger.debug(f"Checking cache for query: {normalized_query}")
-    cached_response = Cache.get(normalized_query)
+    logger.info(f"Checking cache for query: {normalized_query}")
+    cached_response = await Cache.get(normalized_query)
     if cached_response:
         logger.info(f"Cache hit for query: {query_text}")
 
         # Verify if the response_text is available in cache and properly structured
         if "response_text" in cached_response and cached_response["response_text"]:
-            logger.info(f"Returning cached response for query: {query_text}")
+            logger.debug(f"Returning cached response for query: {query_text}")
             return QueryResponse(
                 query_text=cached_response.get("query_text", query_text),
                 response_text=cached_response.get("response_text", ""),
@@ -92,7 +94,7 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
 
     # Step 2: Retrieve similar documents using Qdrant
     logger.debug(f"Retrieving documents related to query: {query_text}")
-    retrieved_docs = search_qdrant(query_text, top_k=3)
+    retrieved_docs = await search_qdrant(query_text, top_k=3)
     if not retrieved_docs:
         logger.warning(f"No relevant documents found for query: {query_text}")
         return QueryResponse(
@@ -102,11 +104,11 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
         )
 
     # Step 3: Combine retrieved documents to form context for LLM
-    context = "\n\n------------------------------------------------------\n\n".join([
+    context = "\n\n---------------------------\n\n".join([
         f"Mã tài liệu: {doc['record_id']}\nNguồn: {doc['source']}\nNội dung: {doc['content']}"
         for doc in retrieved_docs if doc.get('content')
     ])
-    logger.info(f"Retrieved documents combined to form context for query: {query_text}")
+    logger.debug(f"Retrieved documents combined to form context for query: {query_text}")
 
     # Step 4: Define the system prompt with clear citation instructions using the loaded prompt
     system_prompt = rag_prompt
@@ -150,8 +152,8 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
         "timestamp": int(time.time())  # Adding timestamp for potential TTL handling
     }
     try:
-        Cache.set(normalized_query, cache_data)
-        logger.info(f"Cached response for query: {query_text}")
+        await Cache.set(normalized_query, cache_data)
+        logger.info(f"Cached response for query: {response_text}")
     except Exception as cache_error:
         logger.error(f"Failed to cache the response for query: {query_text}. Error: {str(cache_error)}")
 
@@ -161,12 +163,19 @@ def query_rag(query_text: str, provider=None, conversation_history: Optional[Lis
         sources=sources
     )
 
+async def main():
+    """
+    For local testing.
+    """
+    logger.debug("Running example RAG call.")
+    
+    query_text="Tôi có thể đặt tên doanh nghiệp bầng tiếng Anh được không?"   
+    
+    # Since invoke_rag is an async function, we need to await its result.
+    response = await query_rag(query_text)
+    print(f"Received: {response}")
 
 
 if __name__ == "__main__":
-    # Example usage
-    user_query = "Tôi có thể đặt tên doanh nghiệp bầng tiếng Anh được không?"
-    response = query_rag(user_query)
-    print(f"Query: {response.query_text}")
-    print(f"Answer: {response.response_text}")
-    print(f"Sources: {response.sources}")
+    # For local testing: use asyncio.run to execute the async main function.
+    asyncio.run(main())

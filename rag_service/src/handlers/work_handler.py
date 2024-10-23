@@ -6,7 +6,8 @@ from shared_libs.utils.logger import Logger
 from shared_libs.utils.cache import Cache
 from shared_libs.utils.provider_utils import load_llm_provider
 import sys
-
+import json
+import asyncio
 # Add parent directory to the sys.path to access shared modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.query_model import QueryModel
@@ -23,23 +24,29 @@ llm_provider = load_llm_provider()
 CACHE_TTL = 1800  # 30 minutes
 
 def handler(event, context):
-    """
-    AWS Lambda Handler for the worker function.
-    """
-    try:
-        # Create QueryModel instance from incoming event
-        query_item = QueryModel(**event)
-        logger.info("Received query", {"query_text": query_item.query_text})
+    for record in event['Records']:
+        try:
+            payload = json.loads(record['body'])
+            query_id = payload.get('query_id')
+            if not query_id:
+                logger.error("No query_id found in payload.")
+                continue  # Skip processing if no query_id
 
-        # Invoke RAG process for the query
-        response = invoke_rag(query_item)
+            query_item = QueryModel.get_item(query_id)
+            if not query_item:
+                logger.error(f"No query found in database for query_id: {query_id}")
+                continue
 
-        return response.dict()
-    except Exception as e:
-        logger.error("Failed to process the query", {"error": str(e), "event": event})
-        raise e
+            # Invoke RAG processing with cache handling
+            query_item = invoke_rag(query_item)
 
-def invoke_rag(query_item: QueryModel):
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}")
+            # Optionally, handle retries or dead-letter queue
+
+
+
+async def invoke_rag(query_item: QueryModel):
     """
     Handles RAG process by checking cache, invoking the RAG model, and saving the result.
 
@@ -47,70 +54,65 @@ def invoke_rag(query_item: QueryModel):
     :return: Updated QueryModel instance with the answer.
     """
     query_text = query_item.query_text
+    normalized_query = query_text.strip().lower()
+
 
     # Step 1: Check Cache for Existing Response
     try:
-        cached_response = Cache.get(query_text)
+        cached_response = await Cache.get(normalized_query)
         if cached_response:
-            logger.info("Cache hit for query", {"query_text": query_text})
-
-            # Verify that the cached response has all the required fields, especially answer_text
             if "answer_text" in cached_response and cached_response["answer_text"]:
-                logger.info("Returning cached response", {"query_text": query_text})
-                return QueryModel(**cached_response)
+                query_item.answer_text = cached_response["answer_text"]
+                query_item.sources = cached_response.get("sources", [])
+                query_item.is_complete = True
+                return query_item
             else:
-                logger.warning(
-                    "Cache hit but response_text is missing or incomplete. Proceeding to generate a new response.",
-                    {"query_text": query_text}
-                )
-        else:
-            logger.info("No cache found for query, proceeding to generate a new response.", {"query_text": query_text})
+                await Cache.delete(normalized_query)  # Remove incomplete entries
     except Exception as e:
-        logger.error("Failed to retrieve cache, proceeding without cache.", {"query_text": query_text, "error": str(e)})
+        logger.error(f"Cache retrieval failed for query: {query_text}, error: {str(e)}")
 
-    # Step 2: No valid cache found or no response in cached data - Proceed with RAG
-    logger.info("No valid cache found, invoking RAG", {"query_text": query_text})
-    rag_response = query_rag(query_text, provider=llm_provider)
+    except Exception as e:
+        logger.error(f"Cache retrieval failed for query: {query_text}, error: {str(e)}")
+
+    # Step 2: No valid cache found - Proceed with RAG
+    rag_response = await query_rag(query_text)
 
     # Step 3: Update the QueryModel object with response
     query_item.answer_text = rag_response.response_text
     query_item.sources = rag_response.sources
-    query_item.is_complete = bool(rag_response.response_text)
+    query_item.is_complete = True
 
-    # Step 4: Cache the response for future queries (only if we have a valid response)
-    if query_item.answer_text:
-        cache_data = query_item.dict()
-        cache_data["timestamp"] = int(time.time())  # Add a timestamp for TTL tracking
-        try:
-            Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
-            logger.info("Cached response for future use", {"query_text": query_item.query_text})
-        except Exception as e:
-            logger.error("Failed to cache the response.", {"query_text": query_item.query_text, "error": str(e)})
-    else:
-        logger.warning("Incomplete response, not caching", {"query_text": query_item.query_text})
-
-    # Step 5: Store result in DynamoDB (only if processing is complete)
-    if query_item.is_complete:
-        try:
-            query_item.put_item()
-            logger.info("Query processed and stored successfully", {"query_text": query_item.query_text})
-        except Exception as e:
-            logger.error("Failed to store the processed query in DynamoDB", {"query_text": query_item.query_text, "error": str(e)})
+    # Step 4: Cache the response
+    cache_data = {
+        "query_id": query_item.query_id,
+        "query_text": query_item.query_text,
+        "answer_text": query_item.answer_text,
+        "sources": query_item.sources,
+        "is_complete": query_item.is_complete,
+    }
+    try:
+        await Cache.set(query_text, cache_data, expiry=CACHE_TTL)
+        logger.info("Cached response: {}".format(cache_data.get('answer_text')))        
+    except Exception as e:
+        logger.error(f"Failed to cache response for query: {query_text}, error: {str(e)}")
 
     return query_item
 
 
-def main():
+
+async def main():
     """
     For local testing.
     """
     logger.info("Running example RAG call.")
     query_item = QueryModel(
-        query_text="Tôi có thể đặt tên doanh nghiệp bầng tiếng Anh được không?"
+        query_text="Quy trình đăng ký hộ kinh doanh tại Việt Nam là gì?"
     )
-    response = invoke_rag(query_item)
+    
+    # Since invoke_rag is an async function, we need to await its result.
+    response = await invoke_rag(query_item)
     print(f"Received: {response}")
 
 if __name__ == "__main__":
-    # For local testing.
-    main()
+    # For local testing: use asyncio.run to execute the async main function.
+    asyncio.run(main())

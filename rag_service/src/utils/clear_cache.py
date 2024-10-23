@@ -1,4 +1,9 @@
-import boto3
-from shared_libs.utils.query_cache import ProcessedMessageCache
-cache=ProcessedMessageCache()
-cache.clear_cache()
+# clear_cache.py
+
+from shared_libs.utils.cache import Cache
+
+def main():
+    Cache.clear_cache()
+
+if __name__ == "__main__":
+    main()

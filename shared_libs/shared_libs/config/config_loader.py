@@ -47,7 +47,7 @@ class ConfigLoader:
             # Load environment variables if .env exists
             if dotenv_path.exists():
                 load_dotenv(dotenv_path)
-                logging.info(f"Loaded environment variables from '{dotenv_path}'.")
+                logging.debug(f"Loaded environment variables from '{dotenv_path}'.")
                 logging.debug(f"Environment variables loaded: {dict(os.environ)}")
 
             else:
@@ -68,7 +68,7 @@ class ConfigLoader:
 
             # Substitute environment variables in the configuration
             self.config = self._substitute_env_vars(config)
-            logging.info(f"Configuration loaded successfully from '{config_path}'.")
+            logging.debug(f"Configuration loaded successfully from '{config_path}'.")
 
         except FileNotFoundError:
             logging.error(f"Configuration file '{config_path}' not found.")
@@ -92,7 +92,7 @@ class ConfigLoader:
 
             # Store prompts as part of the instance
             self.prompts = self._substitute_env_vars(prompts)
-            logging.info(f"Prompts loaded successfully from '{prompts_path}'.")
+            logging.debug(f"Prompts loaded successfully from '{prompts_path}'.")
 
         except FileNotFoundError:
             logging.error(f"Prompts file '{prompts_path}' not found.")
@@ -119,7 +119,7 @@ class ConfigLoader:
 
             # Store schemas as part of the instance
             self.schemas = schemas
-            logging.info(f"Schemas loaded successfully from '{schemas_dir}'.")
+            logging.debug(f"Schemas loaded successfully from '{schemas_dir}'.")
 
         except FileNotFoundError:
             logging.error(f"Schemas directory '{schemas_relative_path}' not found.")

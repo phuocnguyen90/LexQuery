@@ -1,12 +1,11 @@
 # src/services/search_qdrant.py
 
-
-import logging
 from qdrant_client import QdrantClient
 from time import sleep
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
 from typing import List, Dict, Any
+import asyncio
 # Import the embedding function from existing services
 try:
     from services.get_embedding_function import get_embedding_function  # Absolute import for use in production
@@ -41,7 +40,7 @@ try:
                 prefer_grpc=True,
                 https=True
             )
-            logger.info(f"Successfully initialized Qdrant client at: {QDRANT_URL}")
+            logger.debug(f"Successfully initialized Qdrant client at: {QDRANT_URL}")
             break
         except Exception as e:
             if attempt < max_retries - 1:
@@ -59,7 +58,7 @@ except Exception as final_error:
 # Load the embedding function, which can be FastEmbedWrapper or an external provider
 embed_function_wrapper = get_embedding_function()
 
-def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
+async def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     """
     Search Qdrant for documents similar to the query.
 
@@ -75,7 +74,7 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     try:
         # Using the `embed()` method of `FastEmbedWrapper` to generate embeddings
         if hasattr(embed_function_wrapper, 'embed'):
-            logger.info(f"Generating embedding for query: '{query}'")
+            logger.debug(f"Generating embedding for query: '{query}'")
             query_embedding = embed_function_wrapper.embed(query)
         else:
             raise ValueError("Invalid embedding function wrapper. Must have an 'embed()' method.")
@@ -89,7 +88,7 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
 
     # Step 2: Search in Qdrant
     try:
-        logger.info(f"Searching Qdrant for top {top_k} documents related to query: '{query}'")
+        logger.debug(f"Searching Qdrant for top {top_k} documents related to query: '{query}'")
         search_result = qdrant_client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_embedding,
@@ -107,7 +106,7 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
             })
 
         if results:
-            logger.info(f"Found {len(results)} documents for query: '{query}'")
+            logger.debug(f"Found {len(results)} documents for query: '{query}'")
         else:
             logger.warning(f"No documents found for query: '{query}'")
 
@@ -115,13 +114,16 @@ def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
     except Exception as e:
         logger.error(f"Error during Qdrant search: {e}")
         return []
-
+    
 if __name__ == "__main__":
-    # Test the search function locally
-    sample_query = "Quy trình đăng ký doanh nghiệp tại Việt Nam là gì?"
-    results = search_qdrant(sample_query, top_k=3)
-    for idx, result in enumerate(results, 1):
-        print(f"Result {idx}:")
-        print(f"Record ID: {result['record_id']}")
-        print(f"Source: {result['source']}")
-        print(f"Content: {result['content']}\n")
+    async def main():
+        # Test the search function locally
+        sample_query = "Quy trình đăng ký doanh nghiệp tại Việt Nam là gì?"
+        results = await search_qdrant(sample_query, top_k=3)
+        for idx, result in enumerate(results, 1):
+            print(f"Result {idx}:")
+            print(f"Record ID: {result['record_id']}")
+            print(f"Source: {result['source']}")
+            print(f"Content: {result['content']}\n")
+
+    asyncio.run(main())

@@ -8,9 +8,11 @@ import time
 from hashlib import md5
 import json
 from pathlib import Path
+import uuid
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
-
+import aioboto3
+import aiofiles
 
 # Environment variables
 config = ConfigLoader()
@@ -27,7 +29,7 @@ dynamodb = None
 if not DEVELOPMENT_MODE:
     try:
         dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
-        logger.info(f"DynamoDB resource initialized for region: {AWS_REGION}")
+        logger.debug(f"DynamoDB resource initialized for region: {AWS_REGION}")
     except Exception as e:
         logger.error(f"Failed to initialize DynamoDB resource: {str(e)}")
 
@@ -36,10 +38,12 @@ if not DEVELOPMENT_MODE:
 LOCAL_STORAGE_DIR = Path("local_data")
 LOCAL_STORAGE_DIR.mkdir(exist_ok=True)
 LOCAL_QUERY_FILE = LOCAL_STORAGE_DIR / "query_data.json"
-
+def generate_cache_key(query_text: str) -> str:
+        return md5(query_text.strip().lower().encode('utf-8')).hexdigest()
 
 class QueryModel(BaseModel):
     cache_key: str = Field(default_factory=lambda: None)  # No default generation here
+    query_id: str = Field(default=None)
     create_time: int = Field(default_factory=lambda: int(time.time()))
     query_text: str
     answer_text: Optional[str] = None
@@ -50,7 +54,9 @@ class QueryModel(BaseModel):
         super().__init__(**kwargs)
         if not self.cache_key:
             # Generate cache_key based on query_text if not already provided
-            self.cache_key = md5(self.query_text.encode('utf-8')).hexdigest()
+            self.cache_key = generate_cache_key(self.query_text)    
+
+        # Replace cache key generation throughout the workflow with the new utility
 
     @classmethod
     def get_table(cls):
@@ -67,19 +73,21 @@ class QueryModel(BaseModel):
             logger.error(f"Failed to access DynamoDB table '{CACHE_TABLE_NAME}': {str(e)}")
             raise
 
-    def put_item(self):
-        """Put an item into DynamoDB or save locally in development mode."""
+    async def put_item(self):
+        """Asynchronously put an item into DynamoDB or save locally in development mode."""
         item = self.as_ddb_item()
-        
+
         if DEVELOPMENT_MODE:
             logger.info("Running in DEVELOPMENT_MODE. Saving item locally instead of DynamoDB.", {"cache_key": self.cache_key})
-            self.save_to_local()
+            await self.save_to_local()
         else:
             try:
+                session=aioboto3.Session()
                 logger.debug(f"Attempting to put item in DynamoDB for cache_key: {self.cache_key}")
-                table = self.get_table()
-                response = table.put_item(Item=item)
-                logger.debug("Successfully put item in DynamoDB", {"query_text": self.query_text, "response": response})
+                async with session.resource('dynamodb', region_name=AWS_REGION) as dynamodb:
+                    table = await dynamodb.Table(CACHE_TABLE_NAME)
+                    response = await table.put_item(Item=item)
+                    logger.debug("Successfully put item in DynamoDB", {"query_text": self.query_text, "response": response})
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceNotFoundException':
@@ -90,57 +98,63 @@ class QueryModel(BaseModel):
             except Exception as e:
                 logger.error(f"Unexpected error during put_item operation: {str(e)}", {"cache_key": self.cache_key})
                 raise
+            pass
 
-    def save_to_local(self):
-        """Save the current query model to a local JSON file."""
+    async def save_to_local(self):
+        """Asynchronously save the current query model to a local JSON file."""
         try:
             logger.debug(f"Saving query data locally for cache_key: {self.cache_key}")
+            data = []
             if LOCAL_QUERY_FILE.exists():
-                with LOCAL_QUERY_FILE.open('r', encoding='utf-8') as f:
-                    data = json.load(f)
-            else:
-                data = []
+                async with aiofiles.open(LOCAL_QUERY_FILE, 'r', encoding='utf-8') as f:
+                    content = await f.read()
+                    data = json.loads(content)
 
             data.append(self.dict())
 
-            with LOCAL_QUERY_FILE.open('w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+            async with aiofiles.open(LOCAL_QUERY_FILE, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(data, indent=2))
 
             logger.debug(f"Query data saved locally: {self.cache_key}")
         except Exception as e:
             logger.error(f"Failed to save query locally: {str(e)}", {"cache_key": self.cache_key})
 
     @classmethod
-    def get_item(cls, cache_key: str):
-        """Get an item from DynamoDB or local storage."""
+    async def get_item(cls, cache_key: str):
+        """Asynchronously get an item from DynamoDB or local storage."""
         if DEVELOPMENT_MODE:
             logger.info(f"Running in DEVELOPMENT_MODE. Retrieving item locally for cache_key: {cache_key}")
-            return cls.load_from_local(cache_key)
-
-        try:
-            logger.debug(f"Fetching item from DynamoDB for cache_key: {cache_key}")
-            table = cls.get_table()
-            response = table.get_item(Key={"cache_key": cache_key})
-            if "Item" in response:
-                logger.debug(f"Item retrieved successfully from DynamoDB for cache_key: {cache_key}")
-                return cls(**response["Item"])
-            logger.warning(f"Item not found in DynamoDB for cache_key: {cache_key}")
-            return None
-        except ClientError as e:
-            logger.error(f"Failed to get item from DynamoDB: {e.response['Error']['Message']}", {"cache_key": cache_key})
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error during get_item operation: {str(e)}", {"cache_key": cache_key})
-            return None
+            return await cls.load_from_local(cache_key)
+        else:
+            try:
+                session=aioboto3.Session()
+                logger.debug(f"Fetching item from DynamoDB for cache_key: {cache_key}")
+                async with session.resource('dynamodb', region_name=AWS_REGION) as dynamodb:
+                    table = await dynamodb.Table(CACHE_TABLE_NAME)
+                    response = await table.get_item(Key={"cache_key": cache_key})
+                    if "Item" in response:
+                        logger.debug(f"Item retrieved successfully from DynamoDB for cache_key: {cache_key}")
+                        return cls(**response["Item"])
+                    logger.warning(f"Item not found in DynamoDB for cache_key: {cache_key}")
+                    return None
+            except ClientError as e:
+  
+                logger.error(f"Failed to get item from DynamoDB: {e.response['Error']['Message']}", {"cache_key": cache_key})
+                return None
+            except Exception as e:
+                logger.error(f"Unexpected error during get_item operation: {str(e)}", {"cache_key": cache_key})
+                return None
+            pass
 
     @classmethod
-    def load_from_local(cls, cache_key: str):
-        """Load a specific query model from the local JSON file."""
+    async def load_from_local(cls, cache_key: str):
+        """Asynchronously load a specific query model from the local JSON file."""
         try:
             logger.debug(f"Loading query from local storage for cache_key: {cache_key}")
             if LOCAL_QUERY_FILE.exists():
-                with LOCAL_QUERY_FILE.open('r', encoding='utf-8') as f:
-                    data = json.load(f)
+                async with aiofiles.open(LOCAL_QUERY_FILE, 'r', encoding='utf-8') as f:
+                    content = await f.read()
+                    data = json.loads(content)
                     for item in data:
                         if item.get("cache_key") == cache_key:
                             logger.info(f"Query data loaded from local storage for cache_key: {cache_key}")
