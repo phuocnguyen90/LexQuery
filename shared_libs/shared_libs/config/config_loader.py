@@ -34,9 +34,10 @@ class ConfigLoader:
                 pass
             else:                
                 # Validate AWS resources before proceeding with the rest of the configuration
-                validate_dynamodb(os.getenv('CACHE_TABLE_NAME', 'CacheTable'))
-                validate_dynamodb(os.getenv('LOG_TABLE_NAME', 'LogTable'))
-                validate_s3()
+                # validate_dynamodb(os.getenv('CACHE_TABLE_NAME', 'CacheTable'))
+                # validate_dynamodb(os.getenv('LOG_TABLE_NAME', 'LogTable'))
+                # validate_s3()
+                pass
         return cls._instance
 
     def _load_environment_variables(self, dotenv_relative_path):

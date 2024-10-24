@@ -86,6 +86,8 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
 
         # Step 2: Process the Query
         new_query = QueryModel(query_id=query_id, query_text=query_text)
+        await new_query.put_item()
+        logger.debug(f"New query object created: {new_query.query_id}")
         
         # Enqueue the query for processing
         await invoke_worker(new_query)

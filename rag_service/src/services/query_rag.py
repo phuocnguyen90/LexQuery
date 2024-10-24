@@ -43,6 +43,7 @@ class QueryResponse:
     query_text: str
     response_text: str
     sources: List[str]
+    timestamp: int
 
 async def query_rag(query_item, provider=None, conversation_history: Optional[List[Dict[str, str]]] = None) -> QueryResponse:
     """
@@ -81,10 +82,10 @@ async def query_rag(query_item, provider=None, conversation_history: Optional[Li
             logger.debug(f"Sending prompt to LLM for query: {query_text}")
 
             # Differentiate between single-message and multi-turn interaction
-            if conversation_history:
+            if query_item.conversation_history:
                 response_text = await provider.send_multi_turn_message(
                     prompt=full_prompt,
-                    conversation_history=conversation_history
+                    conversation_history=query_item.conversation_history
                 )
             else:
                 response_text = await provider.send_single_message(prompt=full_prompt)
@@ -104,32 +105,14 @@ async def query_rag(query_item, provider=None, conversation_history: Optional[Li
 
         # Extract sources from retrieved_docs
         sources = [doc['record_id'] for doc in retrieved_docs]
-
-    # Update the QueryModel object with response
-    query_item.answer_text = response_text
-    query_item.sources = sources
-    query_item.is_complete = True
-
-    # Cache the response for future queries
-    cache_data = {
-        "query_id": query_item.query_id,
-        "query_text": query_item.query_text,
-        "answer_text": query_item.answer_text,
-        "sources": query_item.sources,
-        "is_complete": query_item.is_complete,
-        "timestamp": int(time.time())
-    }
-    try:
-        await Cache.set(query_item.query_text, cache_data, expiry=CACHE_TTL)
-        logger.info(f"Cached response for query: {query_item.query_text}")
-    except Exception as cache_error:
-        logger.error(f"Failed to cache the response for query: {query_item.query_text}. Error: {str(cache_error)}")
-
-    return QueryResponse(
-        query_text=query_item.query_text,
-        response_text=query_item.answer_text,
-        sources=query_item.sources
+    # Create and return the QueryResponse
+    response = QueryResponse(
+        query_text=query_text,
+        response_text=response_text,
+        sources=sources,
+        timestamp=int(time.time())
     )
+    return response
 
 # For local testing
 async def main():

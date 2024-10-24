@@ -27,6 +27,9 @@ COPY rag_service/src /app/src
 # Copy central config to be accessible in the container
 COPY shared_libs/shared_libs/config /app/config
 
+# Convert .env to Unix line endings
+RUN sed -i 's/\r$//' /app/config/.env
+
 # Copy entrypoint script
 COPY rag_service/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
@@ -34,7 +37,7 @@ RUN chmod +x /app/entrypoint.sh
 # Set environment variables for configuration paths
 ENV CONFIG_PATH=/app/config/config.yaml
 ENV DOTENV_PATH=/app/config/.env
-RUN export $(grep -v '^#' /app/.env | xargs)
+# RUN export $(grep -v '^#' /app/.env | xargs)
 
 # Expose the port that FastAPI will run on
 EXPOSE 8000

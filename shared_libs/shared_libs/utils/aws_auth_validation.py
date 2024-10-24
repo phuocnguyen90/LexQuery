@@ -12,7 +12,12 @@ LOG_TABLE_NAME = os.getenv("LOG_TABLE_NAME", "LogTable")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
 
 # Initialize AWS resources
-dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+
+if AWS_REGION == "us-east-1":
+    dynamodb = boto3.resource("dynamodb")
+else:
+    dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+    
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
 def validate_dynamodb(table_name):
@@ -29,14 +34,22 @@ def validate_dynamodb(table_name):
                     TableName=table_name,
                     KeySchema=[
                         {
-                            'AttributeName': 'cache_key',
+                            'AttributeName': 'query_id',
                             'KeyType': 'HASH'  # Partition key
                         }
                     ],
                     AttributeDefinitions=[
+                        { "AttributeName": "query_id", "AttributeType": "S" },
+                        { "AttributeName": "cache_key", "AttributeType": "S" }
+                    ],
+                    GlobalSecondaryIndexes=[
                         {
-                            'AttributeName': 'cache_key',
-                            'AttributeType': 'S'  # String type
+                            'IndexName': 'cache_key-index',
+                            'KeySchema': [
+                                { 'AttributeName': 'cache_key', 'KeyType': 'HASH' }
+                            ],
+                            'Projection': { 'ProjectionType': 'ALL'
+                            }
                         }
                     ],
                     BillingMode='PAY_PER_REQUEST'  # Use on-demand billing
