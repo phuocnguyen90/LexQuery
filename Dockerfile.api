@@ -1,0 +1,49 @@
+# legal_qa_rag/Dockerfile.api
+
+# Use AWS Lambda Python 3.10 base image
+FROM public.ecr.aws/lambda/python:3.10
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY rag_service/api_requirements.txt ./
+RUN pip install --no-cache-dir -r api_requirements.txt
+
+# Install fastembed separately if not in requirements.txt
+RUN pip install fastembed
+
+# Create necessary directories
+RUN mkdir -p /app/shared_libs/utils
+RUN mkdir -p /app/shared_libs/config
+
+# Copy only the needed shared_libs modules
+COPY shared_libs/shared_libs/utils/logger.py /app/shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/config/config_loader.py /app/shared_libs/config/config_loader.py
+COPY shared_libs/shared_libs/config/config.yaml /app/shared_libs/config/config.yaml
+COPY shared_libs/shared_libs/config/.env /app/shared_libs/config/.env
+
+# Ensure __init__.py files exist
+RUN touch /app/shared_libs/__init__.py
+RUN touch /app/shared_libs/utils/__init__.py
+RUN touch /app/shared_libs/config/__init__.py
+
+# Set PYTHONPATH
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
+# Copy additional source code
+COPY rag_service/src ./src
+
+# Copy the API handler
+COPY rag_service/handlers/api_handler.py ./
+
+# Pre-download the embedding model (if necessary)
+COPY rag_service/src/utils/download_model.py ./
+RUN python download_model.py
+
+# Set environment variables (if any)
+ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
+ENV DOTENV_PATH=/app/shared_libs/config/.env
+
+# Define the Lambda handler
+CMD ["api_handler.handler"]

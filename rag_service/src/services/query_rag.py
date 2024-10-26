@@ -7,7 +7,6 @@ import asyncio
 # Imports from shared_libs
 from shared_libs.providers import ProviderFactory  # Use the provider factory to dynamically get providers
 from shared_libs.utils.logger import Logger
-from shared_libs.utils.cache import Cache
 from shared_libs.config.config_loader import ConfigLoader
 
 try:

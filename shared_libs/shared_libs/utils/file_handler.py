@@ -1,10 +1,9 @@
 # utils/file_handler.py
 
-import yaml
 import json
 import logging
 from typing import List, Dict, Any, Optional, Union
-import re
+
 import os
 import pandas as pd
 import tempfile
@@ -12,7 +11,6 @@ import zipfile
 import subprocess
 from docx import Document
 from docxcompose.composer import Composer
-from dotenv import load_dotenv
 from shared_libs.models.record import Record
 
 # Configure logger

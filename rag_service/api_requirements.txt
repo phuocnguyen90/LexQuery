@@ -1,10 +1,10 @@
+
 aiofiles
 boto3
 botocore
 fastapi
-fastembed
-google-generativeai
 groq
+google-generativeai
 jsonschema
 langchain_community
 langchain_community
@@ -25,4 +25,5 @@ qdrant_client
 Requests
 scikit_learn
 tqdm
+uvicorn
 watchtower

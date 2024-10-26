@@ -1,14 +1,8 @@
 import os
 import logging
-import boto3
-import time
-import uuid
-import json
-from botocore.exceptions import ClientError
 from pathlib import Path
 from dotenv import load_dotenv
-import watchtower
-import re
+
 import sys
 
 class Logger:

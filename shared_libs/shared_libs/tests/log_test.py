@@ -1,6 +1,5 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import boto3
 import json
 import os
 from botocore.exceptions import ClientError

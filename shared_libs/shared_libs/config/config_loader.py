@@ -6,7 +6,6 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
-from shared_libs.utils.aws_auth_validation import validate_dynamodb, validate_s3
 
 
 class ConfigLoader:
@@ -31,6 +30,8 @@ class ConfigLoader:
             
             DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
             if DEVELOPMENT_MODE:
+                from shared_libs.utils.aws_auth_validation import validate_dynamodb, validate_s3
+
                 pass
             else:                
                 # Validate AWS resources before proceeding with the rest of the configuration

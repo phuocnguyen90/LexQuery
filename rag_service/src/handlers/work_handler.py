@@ -1,13 +1,15 @@
+# rag_service\src\handlers\work_handler.py
 import os
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
-from shared_libs.utils.cache import Cache
 from shared_libs.utils.provider_utils import load_llm_provider
 import sys
 import json
 import asyncio
 import boto3
+from botocore.exceptions import ClientError
 from functools import partial
+from hashlib import md5
 # Add parent directory to the sys.path to access shared modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.query_model import QueryModel
@@ -62,10 +64,60 @@ async def process_message(message):
     try:
         # Deserialize message
         body = json.loads(message['Body'])
-        query_id = body['query_id']
-        logger.info(f"Received message for query_id: {query_id}")
+        query_id = body['query_id']        
         query_text = body['query_text']
-        logger.info(f"Processing query: {query_text}")
+
+        if not query_id or not query_text:
+            logger.error("Missing 'query_id' or 'query_text' in message body.")
+            return        
+        # Generate cache_key using the same MD5 hashing method
+        normalized_query = query_text.strip().lower()
+        cache_key = md5(normalized_query.encode('utf-8')).hexdigest()
+
+        # Attempt to retrieve from cache using cache_key
+        
+        try:
+            cached_item = await QueryModel.get_item_by_cache_key(cache_key)
+        except ClientError as e:
+            if "backfilling" in str(e):
+                logger.warning(f"GSI is backfilling, skipping cache check for cache_key: {cache_key}")
+                cached_item = None
+            else:
+                raise
+
+        if cached_item:
+            logger.debug(f"Cache hit for cache_key: {cache_key}")
+            # Check if the cached item is complete and has an answer
+            if cached_item.is_complete and cached_item.answer_text:
+                logger.info(f"Using cached answer for query_id: {query_id}")
+
+                # Retrieve the current query_item by query_id
+                query_item = await QueryModel.get_item(query_id)
+                if not query_item:
+                    logger.error(f"Query item not found for query_id: {query_id}")
+                    return
+
+                # Update the query_item with cached data
+                query_item.answer_text = cached_item.answer_text
+                query_item.sources = cached_item.sources
+                query_item.is_complete = cached_item.is_complete
+                query_item.timestamp = cached_item.timestamp
+                query_item.conversation_history = cached_item.conversation_history  # If applicable
+
+                # Save the updated query_item to DynamoDB
+                await query_item.put_item()
+                logger.debug(f"Updated query_item with cached data for query_id: {query_id}")
+
+                # Delete the message from the queue as processing is complete
+                await delete_message(message['ReceiptHandle'])
+                logger.info(f"Successfully processed and deleted message for query_id: {query_id} using cached answer.")
+                return  # Exit early since cached answer was used
+
+            else:
+                logger.debug(f"Cached item found but incomplete for cache_key: {cache_key}. Proceeding to generate answer.")
+        else:
+            logger.debug(f"No cache entry found for cache_key: {cache_key}. Proceeding to generate answer.")
+
 
         # Retrieve the query from DynamoDB
         query_item = await QueryModel.get_item(query_id)

@@ -13,10 +13,7 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "legal-rag-qa")
 
 # Initialize AWS resources
 
-if AWS_REGION == "us-east-1":
-    dynamodb = boto3.resource("dynamodb")
-else:
-    dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
     
 s3 = boto3.client("s3", region_name=AWS_REGION)
 

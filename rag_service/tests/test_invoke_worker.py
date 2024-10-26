@@ -4,7 +4,6 @@ from unittest.mock import patch
 from moto import mock_sqs
 import boto3
 from src.handlers.api_handler import invoke_worker, QueryModel
-from shared_libs.utils.cache import Cache
 import os
 
 class TestInvokeWorker(unittest.TestCase):

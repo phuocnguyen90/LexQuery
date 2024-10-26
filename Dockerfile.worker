@@ -17,11 +17,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install fastembed separately
 RUN pip install fastembed
 
+# Copy only the download_model.py script
+COPY rag_service/src/utils/download_model.py /app/download_model.py
+
+# Pre-download the embedding model using the download_model.py script
+RUN python /app/download_model.py
+
 # Copy shared_libs and install it
 COPY shared_libs /app/shared_libs
 RUN pip install -e ./shared_libs
 
-# Copy the rag_service code
+# Copy the rest of the application code
 COPY rag_service/src /app/src
 
 # Copy central config to be accessible in the container
@@ -37,7 +43,6 @@ RUN chmod +x /app/entrypoint.sh
 # Set environment variables for configuration paths
 ENV CONFIG_PATH=/app/config/config.yaml
 ENV DOTENV_PATH=/app/config/.env
-# RUN export $(grep -v '^#' /app/.env | xargs)
 
 # Expose the port that FastAPI will run on
 EXPOSE 8000

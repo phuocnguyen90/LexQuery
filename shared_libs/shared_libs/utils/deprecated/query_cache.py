@@ -120,7 +120,7 @@ if __name__ == "__main__":
     cache.cache_response(test_query, test_response)
 
     # Retrieve the cached response
-    response = cache.get_cached_response(test_query)
+    response = QueryModel.get_item_by_cache_key(test_query)
     if response:
         print(f"Retrieved cached response: {response}")
 
