@@ -3,11 +3,22 @@
 # Use AWS Lambda Python 3.10 base image
 FROM public.ecr.aws/lambda/python:3.10
 
+# Set PYTHONPATH
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 # Set working directory
 WORKDIR /app
 
+# Install system dependencies needed for Rust and Cargo
+RUN yum install -y gcc openssl-devel bzip2-devel libffi-devel make curl
+
+# Install Rust and Cargo
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+# Update PATH environment variable to include Cargo bin
+ENV PATH="/root/.cargo/bin:${PATH}"
 # Copy requirements and install Python dependencies
-COPY rag_service/api_requirements.txt ./
+COPY rag_service/api_requirements.txt .
 RUN pip install --no-cache-dir -r api_requirements.txt
 
 # Install fastembed separately if not in requirements.txt
@@ -28,17 +39,13 @@ RUN touch /app/shared_libs/__init__.py
 RUN touch /app/shared_libs/utils/__init__.py
 RUN touch /app/shared_libs/config/__init__.py
 
-# Set PYTHONPATH
-ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 
 # Copy additional source code
-COPY rag_service/src ./src
-
-# Copy the API handler
-COPY rag_service/handlers/api_handler.py ./
+COPY rag_service/src /app/src
 
 # Pre-download the embedding model (if necessary)
-COPY rag_service/src/utils/download_model.py ./
+COPY rag_service/src/utils/download_model.py .
 RUN python download_model.py
 
 # Set environment variables (if any)

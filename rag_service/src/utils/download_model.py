@@ -1,7 +1,7 @@
 # download_model.py
 
 import os
-from fastembed import TextEmbedding
+import fastembed
 
 def main():
     # Define the model you want to download
@@ -15,7 +15,7 @@ def main():
 
     try:
         # Instantiate TextEmbedding to download the model
-        embedder = TextEmbedding(model_name=model_name, cache_dir=cache_dir)
+        embedder = fastembed.TextEmbedding(model_name=model_name, cache_dir=cache_dir)
         # Optionally, you can perform a dummy embed to ensure the model is loaded
         # For example:
         # _ = embedder.embed("Test")
