@@ -9,6 +9,7 @@ import os
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory  # Use the provider factory to dynamically get providers
 from shared_libs.utils.logger import Logger
+from shared_libs.models.embed_models import EmbeddingRequest, EmbeddingResponse
 from shared_libs.config.config_loader import ConfigLoader
 
 try:

@@ -3,7 +3,7 @@ import json
 import uuid
 import logging
 from typing import Any, Dict, Optional, Union
-from shared_libs.models.record import Record
+from shared_libs.models.record_model import Record
 from llm_formatter import LLMFormatter
 from validation import detect_text_type
 

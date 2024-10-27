@@ -1,9 +1,9 @@
-# app/models.py
+# shared_libs\shared_libs\models\embed_models.py
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-# Define Pydantic models (assuming they are in app.models)
+# Define Pydantic models 
 class EmbeddingRequest(BaseModel):
     texts: List[str] = Field(
         ...,

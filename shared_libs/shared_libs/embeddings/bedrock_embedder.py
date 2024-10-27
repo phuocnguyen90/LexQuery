@@ -5,7 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 from typing import List
 from .base_embedder import BaseEmbedder
-from config.embedding_config import BedrockEmbeddingConfig
+from shared_libs.config.embedding_config import BedrockEmbeddingConfig
 from shared_libs.utils.logger import Logger
 
 logger = Logger.get_logger(module_name=__name__)

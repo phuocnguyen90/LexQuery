@@ -4,7 +4,7 @@
 import openai
 from typing import List
 from .base_embedder import BaseEmbedder
-from config.embedding_config import OpenAIEmbeddingConfig
+from shared_libs.config.embedding_config import OpenAIEmbeddingConfig
 from shared_libs.utils.logger import Logger
 import tiktoken
 

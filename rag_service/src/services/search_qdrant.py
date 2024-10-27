@@ -1,3 +1,4 @@
+# rag_service\src\services\search_qdrant.py
 from qdrant_client import QdrantClient
 from time import sleep
 from shared_libs.config.config_loader import ConfigLoader
@@ -10,6 +11,7 @@ try:
     from services.get_embedding_function import get_embedding_function  # Absolute import for production
 except ImportError:
     from get_embedding_function import get_embedding_function  # Relative import for testing
+
 
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)

@@ -1,6 +1,6 @@
 # src/embeddings/embedder_factory.py
 
-from config.embedding_config import BaseEmbeddingConfig
+from shared_libs.config.embedding_config import BaseEmbeddingConfig
 from .base_embedder import BaseEmbedder
 from .bedrock_embedder import BedrockEmbedder
 from .openai_embedder import OpenAIEmbedder

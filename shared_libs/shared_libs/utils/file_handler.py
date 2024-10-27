@@ -11,7 +11,7 @@ import zipfile
 import subprocess
 from docx import Document
 from docxcompose.composer import Composer
-from shared_libs.models.record import Record
+from shared_libs.models.record_model import Record
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)

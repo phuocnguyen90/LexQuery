@@ -1,5 +1,5 @@
 # config/embedding_config.py
-# config/embedding_config.py
+
 
 from pydantic import Field, SecretStr, ConfigDict
 from pydantic_settings import BaseSettings

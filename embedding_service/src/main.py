@@ -1,13 +1,11 @@
 # app/main.py
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Optional
 
-from embeddings.embedder_factory import EmbedderFactory
-from config.embedding_config import EmbeddingConfig
+from shared_libs.embeddings.embedder_factory import EmbedderFactory
+from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.utils.logger import Logger
-from models.models import EmbeddingRequest, EmbeddingResponse
+from shared_libs.models.embed_models import EmbeddingRequest, EmbeddingResponse
 
 from shared_libs.config import ConfigLoader
 import uvicorn
