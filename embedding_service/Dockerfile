@@ -50,6 +50,8 @@ RUN pip install -e ./shared_libs
 
 RUN python /app/src/utils/download_model.py
 
+RUN pip install gunicorn 
+
 # Expose port
 EXPOSE 8000
 

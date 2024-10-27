@@ -5,6 +5,7 @@ fastapi
 fastembed
 google-generativeai
 groq
+gunicorn
 lxml
 numpy
 openai
@@ -14,6 +15,8 @@ pydantic
 pytest
 python-dotenv
 PyYAML
+pydantic-settings
 qdrant_client
 Requests
 tqdm
+uvicorn
