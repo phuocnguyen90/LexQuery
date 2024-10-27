@@ -5,6 +5,7 @@ fastapi
 fastembed
 groq
 google-generativeai
+httpx
 jsonschema
 langchain_community
 langchain_community

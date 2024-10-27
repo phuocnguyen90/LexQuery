@@ -1,46 +1,49 @@
 # legal_qa_rag/rag_service/Dockerfile.api
+# How to build: from root run
+# docker build -t api_service:v1.0.0 -f rag_service/Dockerfile.api .  
 
 # Use AWS Lambda Python 3.10 base image
 FROM public.ecr.aws/lambda/python:3.10
 
+# Set PYTHONPATH
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 # Set working directory
-WORKDIR /var/task
+WORKDIR /app
 
-# Install system dependencies if needed
-# Example: RUN yum install -y some-package
+# Install system dependencies needed for Rust and Cargo
+RUN yum install -y gcc openssl-devel bzip2-devel libffi-devel make curl
 
+# Install Rust and Cargo
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+# Update PATH environment variable to include Cargo bin
+ENV PATH="/root/.cargo/bin:${PATH}"
 # Copy requirements and install Python dependencies
-COPY api_requirements.txt ./
+COPY rag_service/api_requirements.txt .
 RUN pip install --no-cache-dir -r api_requirements.txt
 
-# Install fastembed separately if not in requirements.txt
-RUN pip install fastembed
+# Create necessary directories
+RUN mkdir -p /app/shared_libs/utils
+RUN mkdir -p /app/shared_libs/config
 
-# Copy shared utilities
-COPY ../shared_utils ./shared_utils
+# Copy only the needed shared_libs modules
+COPY shared_libs/shared_libs/utils/logger.py /app/shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/config/config_loader.py /app/shared_libs/config/config_loader.py
+COPY shared_libs/shared_libs/config/config.yaml /app/shared_libs/config/config.yaml
+COPY shared_libs/shared_libs/config/.env /app/shared_libs/config/.env
 
-# Install shared_utils as an editable package
-RUN pip install -e ./shared_utils
+# Ensure __init__.py files exist
+RUN touch /app/shared_libs/__init__.py
+RUN touch /app/shared_libs/utils/__init__.py
+RUN touch /app/shared_libs/config/__init__.py
 
-# Copy the API handler code
-COPY api_handler.py ./
-
-# Copy additional source code if necessary
-COPY ../../src ./src
-
-# Pre-download the embedding model (if necessary)
-COPY ../../src/utils/download_model.py ./
-RUN python download_model.py
+# Copy additional source code
+COPY rag_service/src /app/src
 
 # Set environment variables (if any)
-ENV CONFIG_PATH=/var/task/config/config.yaml
-ENV DOTENV_PATH=/var/task/config/.env
-
-# Convert .env to Unix line endings (if needed)
-# Assuming config is part of shared_utils or copied separately
-# COPY ../../shared_utils/shared_libs/config /var/task/config
-# RUN sed -i 's/\r$//' /var/task/config/.env
+ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
+ENV DOTENV_PATH=/app/shared_libs/config/.env
 
 # Define the Lambda handler
-# Assuming the handler function is named 'handler' in api_handler.py
 CMD ["api_handler.handler"]

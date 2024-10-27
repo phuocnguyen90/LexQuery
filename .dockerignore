@@ -1,0 +1,14 @@
+# .dockerignore
+
+# Exclude everything
+**
+
+# Include specific directories and files for embedding_service
+!embedding_service/
+!shared_utils/
+!cdk-infra/
+!*.py
+!*.txt
+!*.yaml
+!*.env
+!Dockerfile.*

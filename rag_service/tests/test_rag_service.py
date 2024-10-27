@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from shared_libs.utils.deprecated.query_cache import ProcessedMessageCache
 from shared_libs.config.config_loader import ConfigLoader
-from shared_libs.providers.get_provider import get_groq_provider
+from shared_libs.llm_providers.get_provider import get_groq_provider
 
 import sys
 import os
