@@ -7,6 +7,9 @@ embedding:
   api_key: "${EMBEDDING_API_KEY}"  # Optional, if using an API-based provider
   model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
+bedrock_embedding:
+  model_id: "amazon.titan-embed-text-v2:0"
+
 qdrant:
   api_key: ${QDRANT_API_KEY}
   url: ${QDRANT_URL}
