@@ -5,7 +5,8 @@
 
 # Include specific directories and files for embedding_service
 !embedding_service/
-!shared_utils/
+!rag_service/
+!shared_libs/
 !cdk-infra/
 !*.py
 !*.txt

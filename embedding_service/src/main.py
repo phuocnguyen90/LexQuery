@@ -1,4 +1,4 @@
-# app/main.py
+# embedding_service\src\main.py
 
 from fastapi import FastAPI, HTTPException
 
