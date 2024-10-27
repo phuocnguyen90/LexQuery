@@ -11,3 +11,11 @@ class BaseEmbedder(ABC):
         :return: A list of floats representing the embedding.
         """
         pass
+    def batch_embed(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate an embedding for the given text.
+
+        :param text: Input text string.
+        :return: A list of floats representing the embedding.
+        """
+        pass

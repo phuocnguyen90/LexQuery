@@ -198,3 +198,15 @@ class ConfigLoader:
         if not schema:
             logging.warning(f"Schema '{schema_name}' not found in schemas configuration.")
         return schema
+    
+    def get_embedding_config(self):
+        """
+        Fetch the embedding configuration from the loaded configuration.
+        """
+        embedding_config = self.config.get('embedding')
+        if not embedding_config:
+            logging.error("Embedding configuration is missing in the config.yaml file.")
+            raise ValueError("Embedding configuration is missing.")
+        return embedding_config
+
+

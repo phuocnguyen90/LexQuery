@@ -1,9 +1,7 @@
 # src/embeddings/embedder_factory.py
 
-from embedding_service.app.config.embedding_config import EmbeddingConfig, BaseEmbeddingConfig
+from config.embedding_config import BaseEmbeddingConfig
 from .base_embedder import BaseEmbedder
-from .docker_embedder import DockerEmbedder
-from .ec2_embedder import EC2Embedder
 from .bedrock_embedder import BedrockEmbedder
 from .openai_embedder import OpenAIEmbedder
 from .google_gemini_embedder import GoogleGeminiEmbedder
@@ -25,10 +23,7 @@ class EmbedderFactory:
             logger.debug(f"Using cached embedder for provider '{provider}'.")
             return EmbedderFactory._embedders[provider]
 
-        if provider == "docker":
-            embedder = DockerEmbedder(config)
-        elif provider == "ec2":
-            embedder = EC2Embedder(config)
+
         elif provider == "bedrock":
             embedder = BedrockEmbedder(config)
         elif provider == "openai_embedding":
@@ -37,6 +32,10 @@ class EmbedderFactory:
             embedder = GoogleGeminiEmbedder(config)
         elif provider == "local":
             embedder = LocalEmbedder(config)
+        elif provider == "docker":
+            pass # placeholder
+        elif provider == "ec2":
+            pass # placeholder
         else:
             logger.error(f"Unsupported embedding provider: {provider}")
             raise ValueError(f"Unsupported embedding provider: {provider}")

@@ -8,11 +8,11 @@ embedding:
 
   # API Endpoint-based Embedding Providers
   api_providers:
-    docker:
-      service_url: "http://localhost:8000/embed"
+    # docker:
+    #   service_url: "http://localhost:8000/embed"
 
-    ec2:
-      service_url: "http://embedding-service-public-dns:8000/embed"
+    # ec2:
+    #  service_url: "http://embedding-service-public-dns:8000/embed"
 
     bedrock:
       model_id: "amazon.titan-embed-text-v2:0"
@@ -21,7 +21,7 @@ embedding:
     openai_embedding:
       service_url: "https://api.openai.com/v1/embeddings"
       api_key: "${OPENAI_API_KEY}"
-      model_name: "your-openai-embedding-model"  
+      model_name: "text-embedding-3-small"  
 
     google_gemini_embedding:
       api_key: "${GEMINI_API_KEY}"
@@ -38,13 +38,9 @@ embedding:
       model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
       cache_dir: "/app/models"
 
-    fastembed:
-      library_path: "fastembed"  
-      function_name: "embed"
 
-    genai:
-      library: "genai"  
-      function_name: "embedContent"  
+
+
 
 # LLM Models Configuration
 llm:

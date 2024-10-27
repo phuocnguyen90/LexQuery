@@ -1,5 +1,5 @@
 # app/__init__.py
 
-from .models import EmbeddingModel
+from .models.models import EmbeddingModel
 
 __all__ = ["EmbeddingModel"]

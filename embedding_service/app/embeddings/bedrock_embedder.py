@@ -5,7 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 from typing import List
 from .base_embedder import BaseEmbedder
-from embedding_service.app.config.embedding_config import BedrockEmbeddingConfig
+from config.embedding_config import BedrockEmbeddingConfig
 from shared_libs.utils.logger import Logger
 
 logger = Logger.get_logger(module_name=__name__)
@@ -19,13 +19,14 @@ class BedrockEmbedder(BaseEmbedder):
         """
         self.model_id = config.model_id
         self.region_name = config.region_name
-       
-        
-        # Initialize the Bedrock client
+
+        # Initialize the Bedrock client with credentials
         try:
             self.bedrock_client = boto3.client(
                 service_name='bedrock-runtime',
-                region_name=self.region_name
+                region_name=self.region_name,
+                aws_access_key_id=config.aws_access_key_id.get_secret_value(),
+                aws_secret_access_key=config.aws_secret_access_key.get_secret_value()
             )
             logger.info(f"BedrockEmbedder initialized with model ID '{self.model_id}' in region '{self.region_name}'.")
         except Exception as e:
