@@ -38,60 +38,34 @@ class OpenAIEmbedder(BaseEmbedder):
         except openai.error.OpenAIError as e:
             logger.error(f"OpenAI API error: {e}")
             return []
+        except AttributeError:
+            logger.error("OpenAI API error attribute not found. Ensure that 'openai.error' is correct.")
+            return []
         except Exception as e:
             logger.error(f"Unexpected error during OpenAI embed: {e}")
             return []
 
     def batch_embed(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a list of input texts, ensuring the total number of tokens does not exceed the model's limit.
-        If the total number of tokens exceeds the limit, split the texts into smaller batches.
+        Generate embeddings for a list of texts using OpenAI embedding.
+
+        :param texts: List of input text strings.
+        :return: A list of lists, where each inner list represents the embedding for the corresponding input text.
         """
         try:
-            batches = self._split_into_batches(texts)
-            all_embeddings = []
-
-            for batch in batches:
-                logger.debug(f"Generating embeddings for batch of {len(batch)} texts using OpenAI.")
-                response = openai.Embedding.create(
-                    input=batch,
-                    model=self.model_name
-                )
-                embeddings = [item['embedding'] for item in response['data']]
-                all_embeddings.extend(embeddings)
-
-            return all_embeddings
+            logger.debug(f"Generating batch embeddings for {len(texts)} texts using OpenAI.")
+            response = openai.Embedding.create(
+                input=texts,
+                model=self.model_name
+            )
+            embeddings = [item['embedding'] for item in response['data']]
+            return embeddings
         except openai.error.OpenAIError as e:
-            logger.error(f"OpenAI API error during batch embed: {e}")
+            logger.error(f"OpenAI API error: {e}")
+            return [[] for _ in texts]
+        except AttributeError:
+            logger.error("OpenAI API error attribute not found. Ensure that 'openai.error' is correct.")
             return [[] for _ in texts]
         except Exception as e:
             logger.error(f"Unexpected error during OpenAI batch embed: {e}")
             return [[] for _ in texts]
-
-    def _split_into_batches(self, texts: List[str]) -> List[List[str]]:
-        """
-        Split the list of texts into batches such that the total number of tokens in each batch does not exceed 8192 tokens.
-        """
-        max_tokens = 8192
-        current_batch = []
-        current_token_count = 0
-        batches = []
-
-        for text in texts:
-            num_tokens = len(self.tokenizer.encode(text))
-
-            if current_token_count + num_tokens > max_tokens:
-                # Current batch exceeds the max token limit, finalize this batch and start a new one
-                if current_batch:
-                    batches.append(current_batch)
-                current_batch = [text]
-                current_token_count = num_tokens
-            else:
-                current_batch.append(text)
-                current_token_count += num_tokens
-
-        # Add the last batch if it's not empty
-        if current_batch:
-            batches.append(current_batch)
-
-        return batches

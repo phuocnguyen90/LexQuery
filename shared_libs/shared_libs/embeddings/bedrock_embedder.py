@@ -3,7 +3,7 @@
 import json
 import boto3
 from botocore.exceptions import ClientError
-from typing import List
+from typing import List, Optional
 from .base_embedder import BaseEmbedder
 from shared_libs.config.embedding_config import BedrockEmbeddingConfig
 from shared_libs.utils.logger import Logger
@@ -74,3 +74,15 @@ class BedrockEmbedder(BaseEmbedder):
             logger.error(f"Unexpected error during Bedrock embed: {e}")
 
         return []
+    def batch_embed(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embeddings for a list of texts using Amazon Titan Embeddings G1 - Text model.
+
+        :param texts: List of input text strings.
+        :return: A list of lists, where each inner list represents the embedding for the corresponding input text.
+        """
+        embeddings = []
+        for text in texts:
+            embedding = self.embed(text)
+            embeddings.append(embedding)
+        return embeddings

@@ -175,9 +175,9 @@ async def local_test_submit_query(request: SubmitQueryRequest):
         "sources": query_response.sources,
         "is_complete": True,
     }
-    QueryModel.answer_text= response_data["answer_text"]
-    QueryModel.sources= response_data["sources"]
-    QueryModel.is_complete= response_data["is_complete"]
+    new_query.answer_text = response_data["answer_text"]
+    new_query.sources = response_data["sources"]
+    new_query.is_complete = response_data["is_complete"]
     await new_query.put_item()
 
     # Store response in cache

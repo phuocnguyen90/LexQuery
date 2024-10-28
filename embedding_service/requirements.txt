@@ -18,5 +18,6 @@ PyYAML
 pydantic-settings
 qdrant_client
 Requests
+tiktoken
 tqdm
 uvicorn

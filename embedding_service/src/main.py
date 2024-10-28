@@ -83,6 +83,7 @@ async def get_embeddings(request: EmbeddingRequest):
             logger.error("One or more embeddings could not be generated.")
             raise HTTPException(status_code=500, detail="Embedding generation failed for some texts.")
 
+        logger.info(f"Successfully generated embeddings for provider '{provider}' with {len(request.texts)} texts.")
         return EmbeddingResponse(embeddings=embeddings)
 
     except ValueError as ve:
@@ -91,6 +92,7 @@ async def get_embeddings(request: EmbeddingRequest):
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
