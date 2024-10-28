@@ -1,8 +1,9 @@
-
+aiofiles
 boto3
 botocore
 fastapi
 fastembed
+google-generativeai
 groq
 jsonschema
 langchain_community

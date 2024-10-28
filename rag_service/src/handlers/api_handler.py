@@ -13,16 +13,15 @@ from functools import partial
 
 # Import from shared_libs
 from shared_libs.config.config_loader import ConfigLoader
-from shared_libs.utils.provider_utils import load_llm_provider
 from shared_libs.utils.logger import Logger
-from shared_libs.utils.cache import Cache
+
 
 import sys
 # Add parent directory to the sys.path to access shared modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import internal model
 from models.query_model import QueryModel
-from services.query_rag import query_rag
+
 
 config = ConfigLoader()
 # Initialize logger
@@ -37,9 +36,6 @@ WORKER_LAMBDA_NAME = os.environ.get("WORKER_LAMBDA_NAME", "RagWorker")
 lambda_client = boto3.client("lambda", region_name=AWS_REGION)
 ecs_client = boto3.client("ecs", region_name=AWS_REGION)
 sqs_client_sync = boto3.client('sqs', region_name=AWS_REGION)
-
-# Load the LLM provider (abstracted utility function handles fallbacks)
-llm_provider = load_llm_provider()
 
 # Initialize FastAPI application
 app = FastAPI()
@@ -79,20 +75,42 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
         # Step 1: Check Cache for Existing Response
-        cached_response = await Cache.get(query_text)
+        cache_key = QueryModel._generate_cache_key(query_text)
+        cached_response = await QueryModel.get_item_by_cache_key(cache_key)
+        new_query = QueryModel(query_id=query_id, query_text=query_text)
+
         if cached_response:
             logger.info(f"Cache hit for query: {query_text}")
-            return {"query_id": cached_response.get("query_id"), **cached_response}
 
-        # Step 2: Process the Query
-        new_query = QueryModel(query_id=query_id, query_text=query_text)
+            # Step 2: Copy Cached Data into New QueryModel Instance
+            new_query.answer_text = cached_response.answer_text
+            new_query.sources = cached_response.sources
+            new_query.is_complete = cached_response.is_complete
+            new_query.timestamp = cached_response.timestamp
+            new_query.conversation_history = cached_response.conversation_history
+
+            # Save the new query with the cached data
+            await new_query.put_item()
+            logger.debug(f"New query object created with cached data: {new_query.query_id}")
+
+            # Step 3: Return the New Query Data to the Client
+            return {
+                "query_id": new_query.query_id,
+                "query_text": new_query.query_text,
+                "answer_text": new_query.answer_text,
+                "is_complete": new_query.is_complete,
+                "sources": new_query.sources,
+                "message": "Your query has been retrieved from the cache."
+            }
+
+        # If no cached response, proceed to process the query
         await new_query.put_item()
         logger.debug(f"New query object created: {new_query.query_id}")
-        
+
         # Enqueue the query for processing
         await invoke_worker(new_query)
 
-        # Step 3: Return the query_id to the client
+        # Return the query_id to the client
         return {
             "query_id": query_id,
             "message": "Your query has been received and is being processed."
@@ -140,6 +158,7 @@ async def local_test_submit_query(request: SubmitQueryRequest):
     This endpoint is for local testing only. It allows you to submit a query
     and get an immediate response without relying on the worker Lambda.
     """
+    from services.query_rag import query_rag
     query_text = request.query_text
     logger.info("Local testing endpoint called")
 
@@ -148,7 +167,7 @@ async def local_test_submit_query(request: SubmitQueryRequest):
     new_query = QueryModel(query_id=query_id, query_text=query_text)
 
     # Process the query using RAG (local)
-    query_response = await query_rag(new_query, llm_provider)
+    query_response = await query_rag(new_query)
     response_data = {
         "query_id": query_id,  # Include query_id
         "query_text": query_text,
@@ -156,9 +175,13 @@ async def local_test_submit_query(request: SubmitQueryRequest):
         "sources": query_response.sources,
         "is_complete": True,
     }
+    QueryModel.answer_text= response_data["answer_text"]
+    QueryModel.sources= response_data["sources"]
+    QueryModel.is_complete= response_data["is_complete"]
+    await new_query.put_item()
 
     # Store response in cache
-    await Cache.set(query_text, response_data, expiry=1800)  # Ensure expiry is set
+    # await Cache.set(query_text, response_data, expiry=1800)  # Ensure expiry is set
 
     logger.info("Query processed and cached during local testing")
 

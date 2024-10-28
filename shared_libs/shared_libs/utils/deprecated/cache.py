@@ -46,12 +46,12 @@ if not DEVELOPMENT_MODE:
         dynamodb_resource = boto3.resource('dynamodb', region_name=AWS_REGION)
         logger.info("Connected to DynamoDB for cache.")
     except ClientError as e:
-        logger.error(f"Error connecting to DynamoDB: {e}")
+        logger.error(f"Error connecting to DynamoDB: {e.response['Error']['Message']}")
     except Exception as e:
         logger.error(f"Unexpected error connecting to DynamoDB: {e}")
 
 # Initialize a ThreadPoolExecutor
-executor = ThreadPoolExecutor(max_workers=10)
+executor = ThreadPoolExecutor(max_workers=2)
 
 class Cache:
     @staticmethod
@@ -62,7 +62,14 @@ class Cache:
 
     @staticmethod
     async def set(query_text: str, value: dict, expiry: int = 3600):
-        """Set a value in the cache with an optional expiry time."""
+        """
+        Set a value in the cache with an optional expiry time.
+        
+        Args:
+            query_text (str): The original query text.
+            value (dict): The data to cache. Must include 'query_id'.
+            expiry (int): Time to live for the cache entry in seconds.
+        """
         cache_key = Cache._generate_cache_key(query_text)
         value['cache_key'] = cache_key
         value['ttl'] = int(time.time()) + expiry
@@ -84,8 +91,7 @@ class Cache:
                             cache_client.set,
                             cache_key,
                             value_str,
-                            'EX',
-                            expiry
+                            ex=expiry  # Redis expects 'ex' for expiry in seconds
                         )
                     )
                     logger.debug(f"Cached value in Redis with cache_key: {cache_key}")
@@ -97,23 +103,43 @@ class Cache:
                 table = dynamodb_resource.Table(CACHE_TABLE_NAME)
                 loop = asyncio.get_event_loop()
                 try:
-                    # Use partial to pass keyword arguments
-                    put_item_partial = partial(table.put_item, Item=value)
+                    # Convert the value dict to DynamoDB item format
+                    dynamodb_item = Cache._convert_to_dynamodb_item(value)
+                    
+                    # Use conditional expression to handle TTL if necessary
                     await loop.run_in_executor(
                         executor,
-                        put_item_partial
+                        partial(
+                            table.put_item,
+                            Item=dynamodb_item,
+                            ConditionExpression='attribute_not_exists(query_id) OR ttl < :current_time',
+                            ExpressionAttributeValues={
+                                ':current_time': int(time.time())
+                            }
+                        )
                     )
                     logger.debug(f"Cached value in DynamoDB with cache_key: {cache_key}")
                 except ClientError as e:
-                    logger.error(f"Failed to cache item in DynamoDB: {e.response['Error']['Message']}")
-                    raise
+                    if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+                        logger.warning(f"Item with query_id {value['query_id']} already exists and TTL not expired.")
+                    else:
+                        logger.error(f"Failed to cache item in DynamoDB: {e.response['Error']['Message']}")
+                        raise
                 except Exception as e:
                     logger.error(f"Unexpected error during put_item operation: {str(e)}")
                     raise
 
     @staticmethod
     async def get(query_text: str) -> Optional[dict]:
-        """Get a value from the cache."""
+        """
+        Get a value from the cache.
+        
+        Args:
+            query_text (str): The original query text.
+        
+        Returns:
+            Optional[dict]: The cached data if found, else None.
+        """
         cache_key = Cache._generate_cache_key(query_text)
 
         if DEVELOPMENT_MODE:
@@ -140,18 +166,20 @@ class Cache:
                         partial(
                             dynamodb_client.query,
                             TableName=CACHE_TABLE_NAME,
-                            IndexName='cache_key-index',
+                            IndexName='cache_key-index',  # Ensure this GSI exists
                             KeyConditionExpression='cache_key = :ck',
                             ExpressionAttributeValues={
                                 ':ck': {'S': cache_key}
-                            }
+                            },
+                            Limit=1
                         )
                     )
+                    logger.debug(f"DynamoDB response: {response}")
                     items = response.get('Items', [])
                     if items:
                         logger.debug(f"Cache hit in DynamoDB for cache_key: {cache_key}")
                         # Convert DynamoDB item to a regular dict
-                        return {k: list(v.values())[0] for k, v in items[0].items()}
+                        return Cache._convert_from_dynamodb_item(items[0])
                     else:
                         logger.debug(f"Cache miss in DynamoDB for cache_key: {cache_key}")
                 except ClientError as e:
@@ -162,7 +190,12 @@ class Cache:
 
     @staticmethod
     async def delete(query_text: str):
-        """Delete a value from the cache."""
+        """
+        Delete a value from the cache.
+        
+        Args:
+            query_text (str): The original query text.
+        """
         cache_key = Cache._generate_cache_key(query_text)
 
         if DEVELOPMENT_MODE:
@@ -180,13 +213,13 @@ class Cache:
             if dynamodb_client and dynamodb_resource:
                 loop = asyncio.get_event_loop()
                 try:
-                    # First, query to get all query_ids associated with the cache_key
+                    # Query to get all items with the given cache_key
                     response = await loop.run_in_executor(
                         executor,
                         partial(
                             dynamodb_client.query,
                             TableName=CACHE_TABLE_NAME,
-                            IndexName='cache_key-index',
+                            IndexName='cache_key-index',  # Ensure this GSI exists
                             KeyConditionExpression='cache_key = :ck',
                             ExpressionAttributeValues={
                                 ':ck': {'S': cache_key}
@@ -199,15 +232,78 @@ class Cache:
                         for item in items:
                             query_id = item.get('query_id', {}).get('S')
                             if query_id:
-                                delete_item_partial = partial(table.delete_item, Key={'query_id': query_id})
-                                await loop.run_in_executor(
-                                    executor,
-                                    delete_item_partial
-                                )
-                                logger.debug(f"Deleted cache entry in DynamoDB for query_id: {query_id}")
+                                try:
+                                    await loop.run_in_executor(
+                                        executor,
+                                        partial(table.delete_item, Key={'query_id': query_id, 'cache_key': cache_key})
+                                    )
+                                    logger.debug(f"Deleted cache entry in DynamoDB for query_id: {query_id}")
+                                except ClientError as e:
+                                    logger.error(f"Failed to delete item with query_id {query_id}: {e.response['Error']['Message']}")
+                                except Exception as e:
+                                    logger.error(f"Unexpected error deleting item with query_id {query_id}: {str(e)}")
                     else:
                         logger.debug(f"No cache entry to delete in DynamoDB for cache_key: {cache_key}")
                 except ClientError as e:
-                    logger.error(f"Failed to delete item from DynamoDB cache: {e.response['Error']['Message']}")
+                    logger.error(f"Failed to query items for deletion in DynamoDB: {e.response['Error']['Message']}")
                 except Exception as e:
                     logger.error(f"Unexpected error during delete operation: {str(e)}")
+
+    @staticmethod
+    def _convert_to_dynamodb_item(item: dict) -> dict:
+        """
+        Convert a regular Python dict to a DynamoDB-compatible item.
+        
+        Args:
+            item (dict): The item to convert.
+        
+        Returns:
+            dict: DynamoDB-compatible item.
+        """
+        dynamodb_item = {}
+        for key, value in item.items():
+            if isinstance(value, str):
+                dynamodb_item[key] = {'S': value}
+            elif isinstance(value, int) or isinstance(value, float):
+                dynamodb_item[key] = {'N': str(value)}
+            elif isinstance(value, bool):
+                dynamodb_item[key] = {'BOOL': value}
+            elif isinstance(value, list):
+                dynamodb_item[key] = {'L': [{'S': str(v)} if isinstance(v, str) else {'N': str(v)} for v in value]}
+            elif isinstance(value, dict):
+                dynamodb_item[key] = {'M': Cache._convert_to_dynamodb_item(value)}
+            else:
+                # Handle other types as needed
+                dynamodb_item[key] = {'S': str(value)}
+        return dynamodb_item
+
+    @staticmethod
+    def _convert_from_dynamodb_item(dynamodb_item: dict) -> dict:
+        """
+        Convert a DynamoDB item to a regular Python dict.
+        
+        Args:
+            dynamodb_item (dict): The DynamoDB item to convert.
+        
+        Returns:
+            dict: Regular Python dictionary.
+        """
+        converted = {}
+        for key, value in dynamodb_item.items():
+            for dtype, val in value.items():
+                if dtype == 'S':
+                    converted[key] = val
+                elif dtype == 'N':
+                    # Attempt to convert to int, else float
+                    if '.' in val:
+                        converted[key] = float(val)
+                    else:
+                        converted[key] = int(val)
+                elif dtype == 'BOOL':
+                    converted[key] = val
+                elif dtype == 'L':
+                    converted[key] = [Cache._convert_from_dynamodb_item(v) if isinstance(v, dict) else v for v in val]
+                elif dtype == 'M':
+                    converted[key] = Cache._convert_from_dynamodb_item(val)
+                # Add more types as needed
+        return converted

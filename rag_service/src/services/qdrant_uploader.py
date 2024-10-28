@@ -1,15 +1,14 @@
 # src/services/qdrant_uploader.py
 
-import logging
 import uuid
 from typing import List
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-import shared_libs
+
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
-from shared_libs.models import Record
-from fe_embed import fe_embed_text  # Import the embedding function
+from shared_libs.models.record import Record
+from fe_embed import fe_embed_text 
 
 # Load configuration from shared_libs
 config = ConfigLoader()

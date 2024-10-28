@@ -1,0 +1,46 @@
+# legal_qa_rag/rag_service/Dockerfile.api
+
+# Use AWS Lambda Python 3.10 base image
+FROM public.ecr.aws/lambda/python:3.10
+
+# Set working directory
+WORKDIR /var/task
+
+# Install system dependencies if needed
+# Example: RUN yum install -y some-package
+
+# Copy requirements and install Python dependencies
+COPY api_requirements.txt ./
+RUN pip install --no-cache-dir -r api_requirements.txt
+
+# Install fastembed separately if not in requirements.txt
+RUN pip install fastembed
+
+# Copy shared utilities
+COPY ../shared_utils ./shared_utils
+
+# Install shared_utils as an editable package
+RUN pip install -e ./shared_utils
+
+# Copy the API handler code
+COPY api_handler.py ./
+
+# Copy additional source code if necessary
+COPY ../../src ./src
+
+# Pre-download the embedding model (if necessary)
+COPY ../../src/utils/download_model.py ./
+RUN python download_model.py
+
+# Set environment variables (if any)
+ENV CONFIG_PATH=/var/task/config/config.yaml
+ENV DOTENV_PATH=/var/task/config/.env
+
+# Convert .env to Unix line endings (if needed)
+# Assuming config is part of shared_utils or copied separately
+# COPY ../../shared_utils/shared_libs/config /var/task/config
+# RUN sed -i 's/\r$//' /var/task/config/.env
+
+# Define the Lambda handler
+# Assuming the handler function is named 'handler' in api_handler.py
+CMD ["api_handler.handler"]
