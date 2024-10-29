@@ -1,46 +1,86 @@
 # legal_qa_rag/rag_service/Dockerfile.api
+# How to build: from root run
+# docker build -t api_service:v1.0.0 -f rag_service/Dockerfile.api .  
 
-# Use AWS Lambda Python 3.10 base image
-FROM public.ecr.aws/lambda/python:3.10
+### Stage 1: Builder ###
+FROM python:3.9-slim AS builder
 
-# Set working directory
-WORKDIR /var/task
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies if needed
-# Example: RUN yum install -y some-package
+# Set work directory
+WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY api_requirements.txt ./
-RUN pip install --no-cache-dir -r api_requirements.txt
+# Install build dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install fastembed separately if not in requirements.txt
-RUN pip install fastembed
+# Upgrade pip and install application-specific requirements
+COPY rag_service/api_requirements.txt /app/
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r api_requirements.txt
 
-# Copy shared utilities
-COPY ../shared_utils ./shared_utils
+# Create necessary directories for shared_libs
+RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
 
-# Install shared_utils as an editable package
-RUN pip install -e ./shared_utils
+# Copy only the necessary shared_libs modules
+COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
+COPY shared_libs/shared_libs/config/ shared_libs/config/
+COPY shared_libs/shared_libs/prompts/ shared_libs/prompts/
+COPY shared_libs/shared_libs/schemas/ shared_libs/schemas/
+COPY shared_libs/setup.py shared_libs/setup.py
+COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
 
-# Copy the API handler code
-COPY api_handler.py ./
+# Install shared_libs as an editable package
+RUN pip install --no-cache-dir -e shared_libs
 
-# Copy additional source code if necessary
-COPY ../../src ./src
+# Copy the source code for the API handler
+COPY rag_service/src /app/src
 
-# Pre-download the embedding model (if necessary)
-COPY ../../src/utils/download_model.py ./
-RUN python download_model.py
+### Stage 2: Runtime ###
+FROM python:3.9-slim
 
-# Set environment variables (if any)
-ENV CONFIG_PATH=/var/task/config/config.yaml
-ENV DOTENV_PATH=/var/task/config/.env
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Convert .env to Unix line endings (if needed)
-# Assuming config is part of shared_utils or copied separately
-# COPY ../../shared_utils/shared_libs/config /var/task/config
-# RUN sed -i 's/\r$//' /var/task/config/.env
+# Set work directory
+WORKDIR /app
 
-# Define the Lambda handler
-# Assuming the handler function is named 'handler' in api_handler.py
-CMD ["api_handler.handler"]
+# Install runtime dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the Python packages from the builder
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+
+# Copy application code from builder
+COPY --from=builder /app/src /app/src
+
+# Copy shared_libs from builder
+COPY --from=builder /app/shared_libs /app/shared_libs
+
+# Set the configuration paths as environment variables
+ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
+ENV DOTENV_PATH=/app/shared_libs/config/.env
+
+# Update PYTHONPATH to include shared_libs for import resolution
+ENV PYTHONPATH="/app/src:/app"
+
+# Expose the port that FastAPI will run on
+EXPOSE 8000
+
+# Set work directory
+WORKDIR /app/src
+
+# Define the command to run the application using Uvicorn
+CMD ["python", "-m", "uvicorn", "handlers.api_handler:app", "--host", "0.0.0.0", "--port", "8000"]

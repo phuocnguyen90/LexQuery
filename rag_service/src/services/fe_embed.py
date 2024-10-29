@@ -4,7 +4,7 @@ import os
 import numpy as np
 from typing import List
 import fastembed  
-from shared_libs.providers import ProviderFactory  
+from shared_libs.llm_providers import ProviderFactory  
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
 

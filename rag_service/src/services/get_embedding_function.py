@@ -1,28 +1,22 @@
-# src/services/get_embedding_function.py
+from models.embeddings.embedder_factory import EmbedderFactory
+from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.utils.logger import Logger
+from typing import Callable
 
-try:
-    from services.fe_embed import fe_embed_text  # Absolute import for use in production
-except ImportError:
-    from fe_embed import fe_embed_text   # Relative import for direct script testing
+logger = Logger.get_logger(module_name=__name__)
 
-
-class FastEmbedWrapper:
+def get_embedding_function() -> Callable[[str], list]:
     """
-    A wrapper class for the custom fast_embed function to mimic BedrockEmbeddings interface.
-    """
-    def embed(self, text: str) -> list:
-        """
-        Generate an embedding for the given text.
-
-        :param text: The input text string.
-        :return: A list of floats representing the embedding.
-        """
-        return fe_embed_text(text)
-
-def get_embedding_function():
-    """
-    Returns an instance of the FastEmbedWrapper.
+    Returns an instance of the appropriate embedder based on configuration.
 
     :return: An instance with an 'embed' method.
     """
-    return FastEmbedWrapper()
+    config_loader = ConfigLoader()
+    try:
+        embedder = EmbedderFactory.create_embedder(config_loader)
+        model_info = embedder.get_model_info()
+        logger.info(f"Using embedding provider: {model_info['provider']}")
+        return embedder.embed
+    except Exception as e:
+        logger.error(f"Failed to initialize embedder: {e}")
+        raise

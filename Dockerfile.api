@@ -44,9 +44,6 @@ RUN touch /app/shared_libs/config/__init__.py
 # Copy additional source code
 COPY rag_service/src /app/src
 
-# Pre-download the embedding model (if necessary)
-COPY rag_service/src/utils/download_model.py .
-RUN python download_model.py
 
 # Set environment variables (if any)
 ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
