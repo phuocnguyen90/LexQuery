@@ -128,7 +128,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+*.pem
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -160,3 +160,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 *.json
+.github
