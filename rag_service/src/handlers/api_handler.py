@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # For local development testing
     port = 8000
     logger.info(f"Running the FastAPI server on port {port}.")
-    uvicorn.run("handlers.api_handler:app", host="127.0.0.1", port=port)
+    uvicorn.run("handlers.api_handler:app", host="0.0.0.0", port=port)
 
 # Add a local testing endpoint for convenience
 @app.post("/local_test_submit_query")
