@@ -10,6 +10,7 @@ from mangum import Mangum
 import uuid
 import asyncio
 from functools import partial
+from typing import List, Dict, Optional
 
 # Import from shared_libs
 from shared_libs.config.config_loader import ConfigLoader
@@ -50,6 +51,7 @@ deployment_handler = Mangum(app)
 # Data models
 class SubmitQueryRequest(BaseModel):
     query_text: str
+    conversation_history: Optional[List[Dict[str, str]]] = None  # Optional field
 
 # API Endpoints
 @app.get("/")
@@ -58,6 +60,7 @@ async def index():
 
 @app.get("/get_query")
 async def get_query_endpoint(query_id: str):
+
     logger.debug(f"Fetching query with ID: {query_id}")
     query = await QueryModel.get_item(query_id)
     if query:
@@ -73,40 +76,76 @@ async def get_query_endpoint(query_id: str):
 
 @app.post("/submit_query")
 async def submit_query_endpoint(request: SubmitQueryRequest):
+    """
+    Endpoint to submit a user query for processing.
+
+    If a worker is available, it processes the query immediately.
+    Otherwise, it enqueues the query in SQS and triggers a worker to process it asynchronously.
+
+    :param request: SubmitQueryRequest containing the query_text and optional conversation_history.
+    :return: JSON response with query_id and status message.
+    """
     try:
         query_text = request.query_text
         query_id = str(uuid.uuid4())  # Generate unique query_id
+        conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
         # Step 1: Check Cache for Existing Response
-        cached_response = await Cache.get(query_text)
-        if cached_response:
-            logger.info(f"Cache hit for query: {query_text}")
-            return {"query_id": cached_response.get("query_id"), **cached_response}
-
+        existing_query = await QueryModel.get(query_id)
+        if existing_query and existing_query.is_complete:
+            logger.info(f"Cache hit for query_id: {query_id}")
+            return {
+                "query_id": existing_query.query_id,
+                "response_text": existing_query.answer_text,
+                "sources": existing_query.sources,
+                "timestamp": existing_query.timestamp
+    }
         # Step 2: Process the Query
-        new_query = QueryModel(query_id=query_id, query_text=query_text)
-        await new_query.put_item()
-        logger.debug(f"New query object created: {new_query.query_id}")
+        if WORKER_LAMBDA_NAME:
+            # Worker is available, enqueue the query for asynchronous processing
+            new_query = QueryModel(query_id=query_id, query_text=query_text)
+            await new_query.put_item()
+            logger.debug(f"New query object created: {new_query.query_id}")
         
-        # Enqueue the query for processing
-        await invoke_worker(new_query)
+            # Enqueue the query for processing
+            await invoke_worker(new_query, conversation_history)
 
-        # Step 3: Return the query_id to the client
-        return {
-            "query_id": query_id,
-            "message": "Your query has been received and is being processed."
-        }
+            # Step 3: Return the query_id to the client
+            return {
+                "query_id": query_id,
+                "message": "Your query has been received and is being processed."
+            }
+        else:
+            # No worker available, process synchronously
+            logger.info("No worker available. Processing query synchronously.")
+            response = await query_rag(
+                query_item=QueryModel(query_id=query_id, query_text=query_text),
+                conversation_history=conversation_history
+            )
+            # Store the response in cache or database
+            await Cache.set(query_id, response.dict())  # Assuming Cache.set uses query_id as key
+            logger.info(f"Query processed synchronously for query_id: {query_id}")
+
+            return {
+                "query_id": query_id,
+                "response_text": response.response_text,
+                "sources": response.sources,
+                "timestamp": response.timestamp
+            }
+
+        
 
     except Exception as exc:
         logger.error(f"Failed to handle submit_query endpoint: {str(exc)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-async def invoke_worker(query: QueryModel):
+async def invoke_worker(query: QueryModel, conversation_history: List[Dict[str, str]]):
     """Enqueue the query for processing by sending a message to SQS."""
     try:
         # Convert QueryModel to dict and then to JSON
         payload = query.dict()
+        payload["conversation_history"] = conversation_history
         message_body = json.dumps(payload)
         logger.debug(f"Sending message to SQS: {message_body}")
 
@@ -122,6 +161,12 @@ async def invoke_worker(query: QueryModel):
             send_message_partial
         )
         logger.debug(f"Message sent to SQS: {response.get('MessageId')}")
+        # Invoke another Lambda function asynchronously
+        response = lambda_client.invoke(
+            FunctionName=WORKER_LAMBDA_NAME,
+            InvocationType="Event",
+            Payload=message_body.encode('utf-8'),
+        )
     except Exception as e:
         logger.error(f"Failed to send message to SQS: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to enqueue query for processing")
@@ -131,7 +176,7 @@ if __name__ == "__main__":
     # For local development testing
     port = 8000
     logger.info(f"Running the FastAPI server on port {port}.")
-    uvicorn.run("handlers.api_handler:app", host="127.0.0.1", port=port)
+    uvicorn.run("handlers.api_handler:app", host="0.0.0.0", port=port)
 
 # Add a local testing endpoint for convenience
 @app.post("/local_test_submit_query")

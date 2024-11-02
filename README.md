@@ -32,7 +32,7 @@ legal_qa_rag/
     |- format_service/           # Handles formatting raw text into structured Record objects
     |- rag_service/              # Processes user queries using Retrieval-Augmented Generation
     |- shared_libs/              # Contains shared utilities, models, prompts, and configurations
-    |- rag-cdk-infra/            # AWS infrastructure definitions for deployment using AWS CDK
+    |- rag-cdk/                  # AWS infrastructure definitions for deployment using AWS CDK
     |- Dockerfile                # Base Docker setup for the services
     |- docker-compose.yml        # Config to run multiple services during development
     |- README.md                 # Project overview and instructions

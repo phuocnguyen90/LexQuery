@@ -3,6 +3,7 @@ from typing import List, Optional, Dict
 import re
 import time
 import asyncio
+from pydantic import BaseModel
 
 # Imports from shared_libs
 from shared_libs.providers import ProviderFactory  # Use the provider factory to dynamically get providers
@@ -38,8 +39,8 @@ llm_settings = config_loader.get_config_value(provider_name, {})
 requirements = config_loader.get_config_value("requirements", "")
 llm_provider = ProviderFactory.get_provider(name=provider_name, config=llm_settings, requirements=requirements)
 
-@dataclass
-class QueryResponse:
+
+class QueryResponse(BaseModel):
     query_text: str
     response_text: str
     sources: List[str]
@@ -132,7 +133,7 @@ async def main():
     
     
     from models.query_model import QueryModel  # Import your QueryModel
-    query_text = "Tôi có thể đặt tên doanh nghiệp bằng tiếng Anh được không?"   
+    query_text = "Tôi có thể thành lập công ty cổ phần có vốn điều lệ dưới 1 tỷ đồng không?"   
     query_item = QueryModel(query_text=query_text)
     
     # Since query_rag is an async function, we need to await its result.

@@ -1,7 +1,7 @@
+# rag_service\src\handlers\work_handler.py
 import os
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
-from shared_libs.utils.cache import Cache
 from shared_libs.utils.provider_utils import load_llm_provider
 import sys
 import json
@@ -20,8 +20,6 @@ logger = Logger().get_logger(module_name=__name__)
 config = ConfigLoader()
 llm_provider = load_llm_provider()
 
-# Cache TTL for responses
-# CACHE_TTL = 1800  # 30 minutes
 # Worker configuration
 POLL_INTERVAL = 10  # seconds
 MAX_MESSAGES = 10 
@@ -40,20 +38,35 @@ async def handler(event, context):
                 logger.error("No query_id found in payload.")
                 continue  # Skip processing if no query_id
 
+            conversation_history = payload.get('conversation_history', [])
+
             query_item = await QueryModel.get_item(query_id)
             if not query_item:
                 logger.error(f"No query found in database for query_id: {query_id}")
                 continue
 
             # Invoke RAG processing with cache handling
-            await query_rag(query_item, provider=llm_provider)
+            response = await query_rag(query_item, provider=llm_provider, conversation_history=conversation_history)
 
-            # Update the query item in DynamoDB
+            # Update the query item with the response
+            query_item.answer_text = response.response_text
+            query_item.sources = response.sources
+            query_item.is_complete = True
+            query_item.timestamp = response.timestamp 
+
+            # Save the updated query_item to DynamoDB or cache
             await query_item.put_item()
+            
+            logger.info(f"Successfully processed query_id: {query_id}")
+
+            # Delete the message from the queue after successful processing
+            await delete_message(record['ReceiptHandle'])
+            logger.info(f"Deleted message from SQS for query_id: {query_id}")
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
             # Optionally, handle retries or dead-letter queue
+
 
 async def process_message(message):
     """
@@ -62,54 +75,74 @@ async def process_message(message):
     try:
         # Deserialize message
         body = json.loads(message['Body'])
-        query_id = body['query_id']
-        logger.info(f"Received message for query_id: {query_id}")
-        query_text = body['query_text']
-        logger.info(f"Processing query: {query_text}")
-
-        # Retrieve the query from DynamoDB
-        query_item = await QueryModel.get_item(query_id)
-        if not query_item:
-            logger.error(f"Query item not found for query_id: {query_id}")
+        query_id = body.get('query_id')
+        if not query_id:
+            logger.error("No query_id found in message body.")
+            # Delete the message to prevent it from being retried indefinitely
+            await delete_message(message['ReceiptHandle'])
             return
 
+        logger.info(f"Received message for query_id: {query_id}")
+        query_text = body.get('query_text')
+        if not query_text:
+            logger.error(f"No query_text found in message body for query_id: {query_id}")
+            # Delete the message to prevent it from being retried indefinitely
+            await delete_message(message['ReceiptHandle'])
+            return
+
+        conversation_history = body.get('conversation_history', [])
+
+        logger.info(f"Processing query: {query_text}")
+
+        # Create or retrieve the query from your data store (e.g., DynamoDB)
+        query_item = QueryModel(
+            query_id=query_id,
+            query_text=query_text,
+            conversation_history=conversation_history
+        )
+
         # Perform RAG to generate response
-        response = await query_rag(query_item, provider=None)  # Pass the query_item directly
+        response = await query_rag(query_item, provider=llm_provider, conversation_history=conversation_history)
 
         # Update the query item with the response
         query_item.answer_text = response.response_text
-        query_item.query_text=query_text
         query_item.sources = response.sources
         query_item.is_complete = True
-        query_item.timestamp = response.timestamp  # Assuming timestamp is part of QueryResponse
+        query_item.timestamp = response.timestamp  
+               
+        # Set the response into the cache using query_text as the key
+        await query_item.save()
+        logger.info(f"Query processed and saved for query_id: {query_id}")
 
-        # Save the updated query_item to DynamoDB
-        await query_item.put_item()
 
         # Delete the message from the queue after successful processing
         await delete_message(message['ReceiptHandle'])
         logger.info(f"Successfully processed and deleted message for query_id: {query_id}")
 
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger.error(f"Error processing message for query_id {query_id}: {str(e)}")
         # Depending on requirements, you can decide to delete the message or leave it for retry
         # For now, we'll leave it to be retried
-        pass
+
 
 async def delete_message(receipt_handle):
     """
     Delete a message from the SQS queue.
     """
-    loop = asyncio.get_event_loop()
-    delete_partial = partial(
-        sqs_client.delete_message,
-        QueueUrl=SQS_QUEUE_URL,
-        ReceiptHandle=receipt_handle
-    )
-    await loop.run_in_executor(
-        None,
-        delete_partial
-    )
+    try:
+        loop = asyncio.get_event_loop()
+        delete_partial = partial(
+            sqs_client.delete_message,
+            QueueUrl=SQS_QUEUE_URL,
+            ReceiptHandle=receipt_handle
+        )
+        await loop.run_in_executor(
+            None,
+            delete_partial
+        )
+        logger.debug("Message deleted from SQS.")
+    except Exception as e:
+        logger.error(f"Failed to delete message from SQS: {str(e)}")
 
 async def poll_queue():
     """
