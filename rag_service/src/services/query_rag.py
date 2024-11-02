@@ -48,6 +48,12 @@ class QueryResponse:
 async def query_rag(query_item, provider=None, conversation_history: Optional[List[Dict[str, str]]] = None) -> QueryResponse:
     """
     Perform Retrieval-Augmented Generation (RAG) to answer the user's query.
+
+    :param query_item: An object containing the query text.
+    :param provider: (Optional) Override the default LLM provider.
+    :param conversation_history: (Optional) List of previous conversation messages.
+    :param embedding_mode: (Optional) 'local' or 'api' to override the default embedding mode.
+    :return: QueryResponse containing the answer and sources.
     """
     query_text = query_item.query_text
 
