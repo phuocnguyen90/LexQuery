@@ -1,9 +1,11 @@
-
+aiofiles
 boto3
 botocore
 fastapi
 fastembed
 groq
+google-generativeai
+httpx
 jsonschema
 langchain_community
 langchain_community
@@ -18,11 +20,9 @@ protobuf
 pydantic
 pytest
 python-dotenv
-python_docx
 PyYAML
 qdrant_client
 Requests
-scikit_learn
 tqdm
 uvicorn
 watchtower

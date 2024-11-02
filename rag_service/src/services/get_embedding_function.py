@@ -1,28 +1,32 @@
-# src/services/get_embedding_function.py
+# rag_service/src/services/get_embedding_function.py
 
-try:
-    from services.fe_embed import fe_embed_text  # Absolute import for use in production
-except ImportError:
-    from fe_embed import fe_embed_text   # Relative import for direct script testing
+from typing import Callable, List, Optional
+from shared_libs.utils.logger import Logger
 
+logger = Logger.get_logger(module_name=__name__)
 
-class FastEmbedWrapper:
+async def local_embed(query: str) -> Optional[List[float]]:
     """
-    A wrapper class for the custom fast_embed function to mimic BedrockEmbeddings interface.
+    Temporary local embedding function for development purposes.
+    Replace this with a proper embedding model as needed.
+    
+    :param query: The input text to embed.
+    :return: The embedding vector as a list of floats.
     """
-    def embed(self, text: str) -> list:
-        """
-        Generate an embedding for the given text.
+    try:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+        embedding = model.encode(query).tolist()
+        logger.debug(f"Local embedding generated for query: '{query}'")
+        return embedding
+    except Exception as e:
+        logger.error(f"Local embedding failed for query '{query}': {e}")
+        return None
 
-        :param text: The input text string.
-        :return: A list of floats representing the embedding.
-        """
-        return fe_embed_text(text)
-
-def get_embedding_function():
+def get_embedding_function() -> Callable[[str], List[float]]:
     """
-    Returns an instance of the FastEmbedWrapper.
-
-    :return: An instance with an 'embed' method.
+    Returns the local embedding function for development purposes.
+    
+    :return: A function that takes a string and returns its embedding vector.
     """
-    return FastEmbedWrapper()
+    return local_embed

@@ -1,3 +1,7 @@
+# legal_qa_rag/rag_service/Dockerfile.api
+# How to build: from root run
+# docker build -t worker_service:v1.0.0 -f rag_service/Dockerfile.worker .  
+
 # Use an official Python runtime as the base image
 FROM python:3.10-slim
 
@@ -15,22 +19,33 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install fastembed separately
 RUN pip install fastembed
 
+# Copy only the download_model.py script
+COPY rag_service/src/utils/download_model.py /app/download_model.py
+
+# Pre-download the embedding model using the download_model.py script
+RUN python /app/download_model.py
+
 # Copy shared_libs and install it
 COPY shared_libs /app/shared_libs
 RUN pip install -e ./shared_libs
 
-# Copy the rag_service code
+# Copy the rest of the application code
 COPY rag_service/src /app/src
 
 # Copy central config to be accessible in the container
 COPY shared_libs/shared_libs/config /app/config
 
-# Set environment variables to use the copied config
+# Convert .env to Unix line endings
+RUN sed -i 's/\r$//' /app/config/.env
+
+# Copy entrypoint script
+COPY rag_service/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set environment variables for configuration paths
 ENV CONFIG_PATH=/app/config/config.yaml
 ENV DOTENV_PATH=/app/config/.env
 
 # Expose the port that FastAPI will run on
 EXPOSE 8000
 
-# Run the API server
-CMD ["python", "-m", "uvicorn", "src.handler.work_handler", "--host", "127.0.0.1", "--port", "8000"]

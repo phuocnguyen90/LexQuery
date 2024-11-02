@@ -2,39 +2,88 @@
 
 provider: groq  # Options: groq, google_gemini
 
+# Embedding Models Configuration
 embedding:
-  provider_name: "local"  # or "openai" or "local"
-  api_key: "${EMBEDDING_API_KEY}"  # Optional, if using an API-based provider
-  model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  provider: "ec2"  # Options: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
+  api_service_url: "http://54.91.154.88:8000/embed"
+  # API Endpoint-based Embedding Providers
+  api_providers:
+    # docker:
+    #   service_url: "http://localhost:8000/embed"
 
+    ec2:
+      service_url: "http://54.91.154.88:8000/embed"
+
+    bedrock:
+      model_id: "amazon.titan-embed-text-v2:0"
+      region_name: "us-east-1"
+
+    openai_embedding:
+      service_url: "https://api.openai.com/v1/embeddings"
+      api_key: "${OPENAI_API_KEY}"
+      model_name: "text-embedding-3-small"  
+
+    google_gemini_embedding:
+      api_key: "${GEMINI_API_KEY}"
+      model_name: "text-multilingual-embedding-002"  
+
+    ollama_embedding:
+      service_url: "http://localhost:11434/embed"
+      api_key: "ollama"  
+      model_name: "nomic-embed-text"
+
+  # Library Function-based Embedding Providers
+  library_providers:
+    local:
+      model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+      cache_dir: "/app/models"
+
+
+
+
+
+# LLM Models Configuration
+llm:
+  provider: "groq"  # Options: groq, openai, google_gemini, ollama
+
+  groq:
+    api_key: "${GROQ_API_KEY}"
+    model_name: "llama-3.1-8b-instant"
+    temperature: 0.7
+    max_output_tokens: 2048
+    embedding_model_name: "your-groq-embedding-model"  # If applicable
+    # Add other Groq-specific settings if necessary
+
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model_name: "gpt-4o-mini"
+    temperature: 0.7
+    max_output_tokens: 4096
+    # Add other OpenAI-specific settings if necessary
+
+  google_gemini:
+    api_key: "${GEMINI_API_KEY}"
+    model_name: "gemini-1.5-flash"
+    temperature: 0.7
+    top_p: 0.95
+    top_k: 64
+    max_output_tokens: 2048
+    # Add other Google Gemini-specific settings if necessary
+
+  ollama:
+    api_key: "ollama"  # Replace with actual API key if necessary
+    model_name: "llama3.1"
+    model_path: "/path/to/ollama/model"
+    temperature: 0.7
+    max_output_tokens: 4096
+    ollama_api_url: "http://localhost:11434"
+    # Add other Ollama-specific settings if necessary
+
+# Qdrant Configuration
 qdrant:
-  api_key: ${QDRANT_API_KEY}
-  url: ${QDRANT_URL}
-
-groq:
-  api_key: ${GROQ_API_KEY}
-  model_name: "llama-3.1-8b-instant"
-  temperature: 0.7
-  max_output_tokens: 2048
-  embedding_model_name:
-  # Add other Groq-specific settings if necessary
-
-openai:
-  api_key: ${OPENAI_API_KEY}
-  model_name: "gpt-4o-mini"
-  temperature: 0.7
-  max_output_tokens: 4096
-  # Add other Groq-specific settings if necessary
-
-
-google_gemini:
-  api_key: ${GEMINI_API_KEY}
-  model_name: "gemini-1.5-flash"
-  temperature: 0.7
-  top_p: 0.95
-  top_k: 64
-  max_output_tokens: 2048
-  # Add other Google Gemini-specific settings if necessary
+  api_key: "${QDRANT_API_KEY}"
+  url: "${QDRANT_URL}"
+  collection_name: "legal_qa"
 
 processing:
   input_file: "src/data/raw/input.txt"

@@ -6,12 +6,10 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import defaultdict
-from difflib import SequenceMatcher, get_close_matches
 import underthesea
 from underthesea import word_tokenize 
 import pickle
 from typing import List, Tuple, Dict
-from fuzzywuzzy import fuzz
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

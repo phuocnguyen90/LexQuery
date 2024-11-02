@@ -1,0 +1,86 @@
+# legal_qa_rag/rag_service/Dockerfile.api
+# How to build: from root run
+# docker build -t api_service:v1.0.0 -f rag_service/Dockerfile.api .  
+
+### Stage 1: Builder ###
+FROM python:3.9-slim AS builder
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set work directory
+WORKDIR /app
+
+# Install build dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install application-specific requirements
+COPY rag_service/api_requirements.txt /app/
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r api_requirements.txt
+
+# Create necessary directories for shared_libs
+RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
+
+# Copy only the necessary shared_libs modules
+COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
+COPY shared_libs/shared_libs/config/ shared_libs/config/
+COPY shared_libs/shared_libs/prompts/ shared_libs/prompts/
+COPY shared_libs/shared_libs/schemas/ shared_libs/schemas/
+COPY shared_libs/setup.py shared_libs/setup.py
+COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
+
+# Install shared_libs as an editable package
+RUN pip install --no-cache-dir -e shared_libs
+
+# Copy the source code for the API handler
+COPY rag_service/src /app/src
+
+### Stage 2: Runtime ###
+FROM python:3.9-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set work directory
+WORKDIR /app
+
+# Install runtime dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the Python packages from the builder
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+
+# Copy application code from builder
+COPY --from=builder /app/src /app/src
+
+# Copy shared_libs from builder
+COPY --from=builder /app/shared_libs /app/shared_libs
+
+# Set the configuration paths as environment variables
+ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
+ENV DOTENV_PATH=/app/shared_libs/config/.env
+
+# Update PYTHONPATH to include shared_libs for import resolution
+ENV PYTHONPATH="/app/src:/app"
+
+# Expose the port that FastAPI will run on
+EXPOSE 8000
+
+# Set work directory
+WORKDIR /app/src
+
+# Define the command to run the application using Uvicorn
+CMD ["python", "-m", "uvicorn", "handlers.api_handler:app", "--host", "0.0.0.0", "--port", "8000"]

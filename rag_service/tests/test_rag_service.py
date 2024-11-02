@@ -1,11 +1,10 @@
 # tests/test_rag_service.py
 import os
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from shared_libs.utils.deprecated.query_cache import ProcessedMessageCache
 from shared_libs.config.config_loader import ConfigLoader
-from shared_libs.providers.get_provider import get_groq_provider
+from shared_libs.llm_providers.get_provider import get_groq_provider
 
 import sys
 import os
@@ -13,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app and other components
 from src.handlers.api_handler import app
 from src.services.query_rag import query_rag, QueryResponse
+from src.models.query_model import QueryModel
 
 # Initialize TestClient for API
 client = TestClient(app)
@@ -77,13 +77,13 @@ def test_cache():
     # Cache response
     cache.cache_response(mock_query_text, mock_query_response)
     # Retrieve response
-    cached_response = cache.get_cached_response(mock_query_text)
+    cached_response = QueryModel.get_item_by_cache_key(mock_query_text)
     assert cached_response == mock_query_response
 
     # Clear the cache if in development mode
     if os.getenv("DEVELOPMENT_MODE", "True") == "True":
         cache.clear_cache()
-        cached_response = cache.get_cached_response(mock_query_text)
+        cached_response = QueryModel.get_item_by_cache_key(mock_query_text)
         assert cached_response is None
 
 # Test Config Loading
@@ -101,7 +101,7 @@ def test_redis_cache(mock_set, mock_get):
     mock_get.return_value = mock_query_response.encode("utf-8")
     cache = ProcessedMessageCache()
     # Test get_cached_response
-    response = cache.get_cached_response(mock_query_text)
+    response = QueryModel.get_item_by_cache_key(mock_query_text)
     assert response == mock_query_response
     # Test cache_response
     cache.cache_response(mock_query_text, mock_query_response)

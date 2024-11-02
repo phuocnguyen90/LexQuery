@@ -5,12 +5,8 @@ fastapi
 fastembed
 google-generativeai
 groq
-jsonschema
-langchain_community
-langchain_text_splitters
-langdetect
+gunicorn
 lxml
-mangum
 numpy
 openai
 pandas
@@ -18,10 +14,10 @@ protobuf
 pydantic
 pytest
 python-dotenv
-python_docx
 PyYAML
+pydantic-settings
 qdrant_client
 Requests
-scikit_learn
+tiktoken
 tqdm
-watchtower
+uvicorn

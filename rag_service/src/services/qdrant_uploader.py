@@ -1,15 +1,17 @@
 # src/services/qdrant_uploader.py
 
-import logging
 import uuid
 from typing import List
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-import shared_libs
+
+import boto3
+from botocore.exceptions import ClientError
+
 from shared_libs.config.config_loader import ConfigLoader
 from shared_libs.utils.logger import Logger
-from shared_libs.models import Record
-from fe_embed import fe_embed_text  # Import the embedding function
+from shared_libs.models.record_model import Record
+from services.get_embedding_function import get_embedding_function  # Updated import
 
 # Load configuration from shared_libs
 config = ConfigLoader()
@@ -21,7 +23,7 @@ logger = Logger.get_logger(module_name=__name__)
 qdrant_config = config.get("qdrant", {})
 QDRANT_API_KEY = qdrant_config.get("api_key")
 QDRANT_URL = qdrant_config.get("url")
-COLLECTION_NAME = config.get("qdrant_collection_name", "legal_qa")
+COLLECTION_NAME = 'LEGAL_DB'
 
 # Set up Qdrant Client with Qdrant Cloud parameters
 if not QDRANT_API_KEY or not QDRANT_URL:
@@ -34,6 +36,9 @@ qdrant_client = QdrantClient(
     prefer_grpc=True  # Optional, faster if using gRPC protocol, but make sure Qdrant Cloud supports it
 )
 
+# Initialize the embedding function using Bedrock
+embedding_function = get_embedding_function()
+
 def add_record_to_qdrant(record: Record):
     """
     Add a single Record to Qdrant.
@@ -42,7 +47,7 @@ def add_record_to_qdrant(record: Record):
     """
     try:
         # Use the embedding function to get the embedding
-        embedding = fe_embed_text(record.content)
+        embedding = embedding_function.embed(record.content)
         if not embedding:
             logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             return
@@ -62,6 +67,8 @@ def add_record_to_qdrant(record: Record):
             ]
         )
         logger.info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
+    except ClientError as e:
+        logger.error(f"AWS ClientError while adding record {record.record_id} to Qdrant: {e}")
     except Exception as e:
         logger.error(f"Failed to add record {record.record_id} to Qdrant: {e}")
 
@@ -73,7 +80,7 @@ def add_records_to_qdrant(records: List[Record]):
     """
     points = []
     for record in records:
-        embedding = fe_embed_text(record.content)
+        embedding = embedding_function.embed(record.content)
         if not embedding:
             logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             continue
@@ -95,5 +102,7 @@ def add_records_to_qdrant(records: List[Record]):
                 points=points
             )
             logger.info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
+        except ClientError as e:
+            logger.error(f"AWS ClientError while adding records to Qdrant: {e}")
         except Exception as e:
             logger.error(f"Failed to add records to Qdrant: {e}")

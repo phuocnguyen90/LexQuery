@@ -6,7 +6,6 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
-from shared_libs.utils.aws_auth_validation import validate_dynamodb, validate_s3
 
 
 class ConfigLoader:
@@ -31,6 +30,8 @@ class ConfigLoader:
             
             DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
             if DEVELOPMENT_MODE:
+                from shared_libs.utils.aws_auth_validation import validate_dynamodb, validate_s3
+
                 pass
             else:                
                 # Validate AWS resources before proceeding with the rest of the configuration
@@ -197,3 +198,15 @@ class ConfigLoader:
         if not schema:
             logging.warning(f"Schema '{schema_name}' not found in schemas configuration.")
         return schema
+    
+    def get_embedding_config(self):
+        """
+        Fetch the embedding configuration from the loaded configuration.
+        """
+        embedding_config = self.config.get('embedding')
+        if not embedding_config:
+            logging.error("Embedding configuration is missing in the config.yaml file.")
+            raise ValueError("Embedding configuration is missing.")
+        return embedding_config
+
+

@@ -1,6 +1,6 @@
 # clear_cache.py
 
-from shared_libs.utils.cache import Cache
+from shared_libs.utils.deprecated.cache import Cache
 
 def main():
     Cache.clear_cache()
