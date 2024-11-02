@@ -4,15 +4,15 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  provider: "local"  # Options: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
-
+  provider: "ec2"  # Options: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
+  api_service_url: "http://54.91.154.88:8000/embed"
   # API Endpoint-based Embedding Providers
   api_providers:
     # docker:
     #   service_url: "http://localhost:8000/embed"
 
-    # ec2:
-    #  service_url: "http://embedding-service-public-dns:8000/embed"
+    ec2:
+      service_url: "http://54.91.154.88:8000/embed"
 
     bedrock:
       model_id: "amazon.titan-embed-text-v2:0"

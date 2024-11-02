@@ -1,7 +1,7 @@
 # embedding_service\src\main.py
 
 from fastapi import FastAPI, HTTPException
-
+from typing import List, Optional
 from shared_libs.embeddings.embedder_factory import EmbedderFactory
 from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.utils.logger import Logger
@@ -10,6 +10,7 @@ from shared_libs.models.embed_models import EmbeddingRequest, EmbeddingResponse
 from shared_libs.config import ConfigLoader
 import uvicorn
 import os
+import json
 
 app_config=ConfigLoader()
 
@@ -56,6 +57,18 @@ async def get_embeddings(request: EmbeddingRequest):
     is_batch = request.is_batch  # Whether to use batch embedding or not
 
     try:
+
+        # Attempt to decode the JSON
+
+        if isinstance(request.texts, str):
+            # Split the multi-line string into separate lines
+            texts = [line.strip() for line in request.texts.splitlines() if line.strip()]
+        else:
+            texts = request.texts
+
+        if not texts:
+            raise ValueError("No texts provided for embedding.")
+
         # Load configuration
         embedding_config = EmbeddingConfig.from_config_loader()
 
@@ -72,12 +85,12 @@ async def get_embeddings(request: EmbeddingRequest):
 
         # Generate embeddings
         if is_batch:
-            embeddings = embedder.batch_embed(request.texts)
+            embeddings = embedder.batch_embed(texts)  # Should return List[List[float]]
         else:
             if len(request.texts) != 1:
                 raise HTTPException(status_code=400, detail="Single embedding request should contain exactly one text.")
-            embeddings = [embedder.embed(request.texts[0])]
-
+            embedding = embedder.embed(texts[0])  # Should return List[float]
+            embeddings = [embedding]
         # Validate embeddings
         if not all(embeddings):
             logger.error("One or more embeddings could not be generated.")
@@ -105,7 +118,7 @@ async def health_check():
 if __name__ == "__main__":
     # Retrieve port from environment or default to 8000
     port = int(os.getenv("PORT", 8000))
-    host = os.getenv("HOST", "127.0.0.1")
+    host = os.getenv("HOST", "0.0.0.0")
 
     logger.info(f"Running the FastAPI server on {host}:{port} for local testing.")
     uvicorn.run("main:app", host=host, port=port)
