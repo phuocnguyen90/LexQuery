@@ -1,4 +1,5 @@
-# rag_service\src\services\search_qdrant.py
+# rag_service/src/services/search_qdrant.py
+
 from qdrant_client import QdrantClient
 from time import sleep
 from shared_libs.config.config_loader import ConfigLoader
@@ -6,12 +7,11 @@ from shared_libs.utils.logger import Logger
 from typing import List, Dict, Any
 import asyncio
 
-# Import the embedding function from existing services
+# Import the embedding function from existing services if needed
 try:
     from services.get_embedding_function import get_embedding_function  # Absolute import for production
 except ImportError:
     from get_embedding_function import get_embedding_function  # Relative import for testing
-
 
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)
@@ -22,7 +22,7 @@ qdrant_config = config_loader.get_config_value('qdrant', {})
 
 QDRANT_URL = qdrant_config.get("url")
 QDRANT_API_KEY = qdrant_config.get("api_key", "")
-COLLECTION_NAME = 'legal_qa'
+COLLECTION_NAME = config_loader.get_config_value("qdrant.collection_name", "legal_qa")
 
 # Ensure environment variables are set properly
 if not QDRANT_URL:
@@ -53,39 +53,27 @@ except Exception as final_error:
     logger.error(f"Final failure to initialize Qdrant client: {final_error}")
     raise
 
-# Load the embedding function
-embed_function_wrapper = get_embedding_function()
-
-async def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
+async def search_qdrant(
+    embedding_vector: List[float],
+    top_k: int = 3
+) -> List[Dict]:
     """
-    Search Qdrant for documents similar to the query.
+    Search Qdrant for documents similar to the query embedding.
 
-    :param query: The user's input query.
+    :param embedding_vector: The embedding vector of the query.
     :param top_k: Number of top similar documents to retrieve.
     :return: List of dictionaries containing 'record_id', 'source', and 'content'.
     """
-    if not embed_function_wrapper:
-        logger.error("Embedding function wrapper is not properly initialized.")
-        return []
-
-    # Step 1: Generate the embedding for the query text
-    try:
-        logger.debug(f"Generating embedding for query: '{query}'")
-        query_embedding = embed_function_wrapper(query)
-    except Exception as e:
-        logger.error(f"Failed to generate embedding for the query '{query}': {e}")
-        return []
-
-    if not query_embedding:
-        logger.error("No embedding returned for the query.")
+    if not embedding_vector:
+        logger.error("No embedding vector provided for Qdrant search.")
         return []
 
     # Step 2: Search in Qdrant
     try:
-        logger.debug(f"Searching Qdrant for top {top_k} documents related to query: '{query}'")
+        logger.debug(f"Searching Qdrant for top {top_k} documents related to the embedding.")
         search_result = qdrant_client.search(
             collection_name=COLLECTION_NAME,
-            query_vector=query_embedding,
+            query_vector=embedding_vector,
             limit=top_k,
             with_payload=True
         )
@@ -101,9 +89,9 @@ async def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
             })
 
         if results:
-            logger.debug(f"Found {len(results)} documents for query: '{query}'")
+            logger.debug(f"Found {len(results)} documents for the embedding.")
         else:
-            logger.warning(f"No documents found for query: '{query}'")
+            logger.warning(f"No documents found for the given embedding.")
 
         return results
     except Exception as e:
@@ -113,8 +101,8 @@ async def search_qdrant(query: str, top_k: int = 3) -> List[Dict]:
 if __name__ == "__main__":
     async def main():
         # Test the search function locally
-        sample_query = "Quy trình đăng ký doanh nghiệp tại Việt Nam là gì?"
-        results = await search_qdrant(sample_query, top_k=3)
+        sample_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]  # Replace with a valid embedding vector
+        results = await search_qdrant(sample_embedding, top_k=3)
         for idx, result in enumerate(results, 1):
             print(f"Result {idx}:")
             print(f"Record ID: {result['record_id']}")
@@ -123,3 +111,4 @@ if __name__ == "__main__":
             print(f"Model Info: {result.get('model_info', {})}\n")
 
     asyncio.run(main())
+ 

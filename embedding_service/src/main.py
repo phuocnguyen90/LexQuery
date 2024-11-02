@@ -57,11 +57,18 @@ async def get_embeddings(request: EmbeddingRequest):
     is_batch = request.is_batch  # Whether to use batch embedding or not
 
     try:
-        # Read the raw body
-        body = await request()
+
         # Attempt to decode the JSON
-        payload = json.loads(body.decode('utf-8'))
-        texts: List[str] = payload.get("texts", [])
+
+        if isinstance(request.texts, str):
+            # Split the multi-line string into separate lines
+            texts = [line.strip() for line in request.texts.splitlines() if line.strip()]
+        else:
+            texts = request.texts
+
+        if not texts:
+            raise ValueError("No texts provided for embedding.")
+
         # Load configuration
         embedding_config = EmbeddingConfig.from_config_loader()
 

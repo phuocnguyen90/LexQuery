@@ -6,6 +6,7 @@ from .bedrock_embedder import BedrockEmbedder
 from .openai_embedder import OpenAIEmbedder
 from .google_gemini_embedder import GoogleGeminiEmbedder
 from .local_embedder import LocalEmbedder
+from .ec2_embedder import EC2Embedder
 from shared_libs.utils.logger import Logger
 from typing import Dict
 
@@ -35,7 +36,7 @@ class EmbedderFactory:
         elif provider == "docker":
             pass # placeholder
         elif provider == "ec2":
-            pass # placeholder
+            embedder = EC2Embedder(config)
         else:
             logger.error(f"Unsupported embedding provider: {provider}")
             raise ValueError(f"Unsupported embedding provider: {provider}")

@@ -1,22 +1,32 @@
-from models.embeddings.embedder_factory import EmbedderFactory
-from shared_libs.config.config_loader import ConfigLoader
+# rag_service/src/services/get_embedding_function.py
+
+from typing import Callable, List, Optional
 from shared_libs.utils.logger import Logger
-from typing import Callable
 
 logger = Logger.get_logger(module_name=__name__)
 
-def get_embedding_function() -> Callable[[str], list]:
+async def local_embed(query: str) -> Optional[List[float]]:
     """
-    Returns an instance of the appropriate embedder based on configuration.
-
-    :return: An instance with an 'embed' method.
+    Temporary local embedding function for development purposes.
+    Replace this with a proper embedding model as needed.
+    
+    :param query: The input text to embed.
+    :return: The embedding vector as a list of floats.
     """
-    config_loader = ConfigLoader()
     try:
-        embedder = EmbedderFactory.create_embedder(config_loader)
-        model_info = embedder.get_model_info()
-        logger.info(f"Using embedding provider: {model_info['provider']}")
-        return embedder.embed
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+        embedding = model.encode(query).tolist()
+        logger.debug(f"Local embedding generated for query: '{query}'")
+        return embedding
     except Exception as e:
-        logger.error(f"Failed to initialize embedder: {e}")
-        raise
+        logger.error(f"Local embedding failed for query '{query}': {e}")
+        return None
+
+def get_embedding_function() -> Callable[[str], List[float]]:
+    """
+    Returns the local embedding function for development purposes.
+    
+    :return: A function that takes a string and returns its embedding vector.
+    """
+    return local_embed
