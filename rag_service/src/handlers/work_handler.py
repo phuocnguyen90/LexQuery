@@ -71,7 +71,7 @@ async def handler(event, context):
             query_item.timestamp = response.timestamp 
 
             # Save the updated query_item to DynamoDB or cache
-            await query_item.put_item()
+            await query_item.update_item(query_id,query_item)
             
             logger.info(f"Successfully processed query_id: {query_id}")
 
@@ -144,7 +144,7 @@ async def process_message(message):
         query_item.timestamp = response.timestamp  
                
         # Set the response into the cache using query_text as the key
-        await query_item.save()
+        await query_item.update_item(query_id,query_item)
         logger.info(f"Query processed and saved for query_id: {query_id}")
 
 

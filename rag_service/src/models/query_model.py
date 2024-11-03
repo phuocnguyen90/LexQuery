@@ -27,7 +27,6 @@ logger = Logger.get_logger(module_name=__name__)
 
 
 
-
 class QueryModel(BaseModel):
     """
     Represents a user's query within the Retrieval-Augmented Generation (RAG) system.
@@ -66,8 +65,8 @@ class QueryModel(BaseModel):
             and all related processes are finalized.
         
         timestamp (Optional[int]): 
-            An optional Unix timestamp that can be used for additional tracking or 
-            logging purposes. Defaults to `None`.
+            An optional Unix timestamp that can be used for additional tracking completion time 
+            as to when the answer has been generated. Defaults to `None`.
         
         conversation_history (Optional[List[Dict[str, str]]]): 
             A list representing the history of the conversation leading up to the current query. 
@@ -113,17 +112,17 @@ class QueryModel(BaseModel):
         This method should be called before any DynamoDB operations.
         """
         if cls.dynamodb_client is None and cls.dynamodb_resource is None:
-            DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
+            
             AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-            if not DEVELOPMENT_MODE:
-                try:
-                    cls.dynamodb_client = boto3.client('dynamodb', region_name=AWS_REGION)
-                    cls.dynamodb_resource = boto3.resource('dynamodb', region_name=AWS_REGION)
-                    logger.info("Connected to DynamoDB in QueryModel.")
-                except ClientError as e:
-                    logger.error(f"Failed to initialize DynamoDB client: {e.response['Error']['Message']}")
-                except Exception as e:
-                    logger.error(f"Unexpected error initializing DynamoDB client: {str(e)}")
+            
+            try:
+                cls.dynamodb_client = boto3.client('dynamodb', region_name=AWS_REGION)
+                cls.dynamodb_resource = boto3.resource('dynamodb', region_name=AWS_REGION)
+                logger.info("Connected to DynamoDB in QueryModel.")
+            except ClientError as e:
+                logger.error(f"Failed to initialize DynamoDB client: {e.response['Error']['Message']}")
+            except Exception as e:
+                logger.error(f"Unexpected error initializing DynamoDB client: {str(e)}")
 
 
 
@@ -214,7 +213,10 @@ class QueryModel(BaseModel):
                 return
 
         cache_table_name = os.getenv("CACHE_TABLE_NAME", "CacheTable")
+        # Convert query_item to a dictionary, excluding unset fields and key attributes
+        
         table = self.dynamodb_resource.Table(cache_table_name)
+        
         logger.debug(f"Putting item into DynamoDB Table: {cache_table_name} for query_id: {self.query_id}")
         try:
             # Convert the QueryModel to a DynamoDB-compatible dict
@@ -240,16 +242,6 @@ class QueryModel(BaseModel):
             raise
 
     async def update_item(self, query_id: str, query_item: 'QueryModel') -> bool:
-        """
-        Update an existing DynamoDB record identified by query_id by copying non-None values from query_item.
-
-        Args:
-            query_id (str): The unique identifier for the query to update.
-            query_item (QueryModel): The QueryModel instance containing fields to update.
-
-        Returns:
-            bool: True if the update was successful, False otherwise.
-        """
         # Ensure DynamoDB is initialized
         if self.dynamodb_resource is None:
             self.initialize_dynamodb()
@@ -261,31 +253,39 @@ class QueryModel(BaseModel):
         table = self.dynamodb_resource.Table(cache_table_name)
 
         # Convert query_item to a dictionary, excluding unset fields
-        update_fields = query_item.dict(exclude_unset=True)
+        update_fields = query_item.dict(exclude_unset=True, exclude={'query_id', 'cache_key'})
+
 
         if not update_fields:
             logger.warning("No fields provided to update.")
             return False
 
-        # Build the UpdateExpression dynamically based on the fields to update
-        update_expression = "SET " + ", ".join([f"{k} = :{k}" for k in update_fields.keys()])
-
-        # Prepare the ExpressionAttributeValues
+        # Build the UpdateExpression dynamically
+        update_expression = "SET " + ", ".join([f"#{k} = :{k}" for k in update_fields.keys()])
+        expression_attribute_names = {f"#{k}": k for k in update_fields.keys()}
         expression_attribute_values = {f":{k}": v for k, v in update_fields.items()}
 
         logger.debug(f"Updating item in DynamoDB Table: {cache_table_name} for query_id: {query_id}")
         logger.debug(f"UpdateExpression: {update_expression}")
+        logger.debug(f"ExpressionAttributeNames: {expression_attribute_names}")
         logger.debug(f"ExpressionAttributeValues: {expression_attribute_values}")
 
         try:
+            # Adjust the Key parameter based on your table's key schema
+            key = {'query_id': str(query_id),
+                   'cache_key': str(query_item.cache_key)
+                   }
+            
+
             await asyncio.get_event_loop().run_in_executor(
                 self.executor,
                 partial(
                     table.update_item,
-                    Key={'query_id': query_id},
+                    Key=key,
                     UpdateExpression=update_expression,
+                    ExpressionAttributeNames=expression_attribute_names,
                     ExpressionAttributeValues=expression_attribute_values,
-                    ReturnValues="UPDATED_NEW"  # Returns the updated attributes
+                    ReturnValues="UPDATED_NEW"
                 )
             )
             logger.info(f"Successfully updated item in DynamoDB for query_id: {query_id}")
@@ -296,6 +296,7 @@ class QueryModel(BaseModel):
         except Exception as e:
             logger.error(f"Unexpected error during update_item: {str(e)}")
             return False
+
 
 
     async def save_to_local(self):
