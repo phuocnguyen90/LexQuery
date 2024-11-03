@@ -1,6 +1,6 @@
 # rag_service\src\handlers\work_handler.py
 import os
-from shared_libs.config.config_loader import AppConfigLoader, LLMProviderConfigLoader
+from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.llm_providers import ProviderFactory
 import sys

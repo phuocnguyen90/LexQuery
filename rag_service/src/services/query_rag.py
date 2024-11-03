@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 import time
+import sys
+import os
 import asyncio
 from pydantic import BaseModel
 
@@ -8,12 +10,16 @@ from pydantic import BaseModel
 from shared_libs.llm_providers import ProviderFactory  
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
-from get_embedding_function import get_embedding_function
+# Add parent directory to the sys.path to access shared modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 try:
     from services.search_qdrant import search_qdrant    # Absolute import for use in production
+    from services.get_embedding_function import get_embedding_function
 except ImportError:
     from search_qdrant import search_qdrant    # Relative import for direct script testing
+    from get_embedding_function import get_embedding_function 
 
 # Load configuration
 config_loader = AppConfigLoader()

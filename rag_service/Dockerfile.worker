@@ -1,51 +1,89 @@
-# rag_service\Dockerfile.worker
+# legal_qa_rag/rag_service/Dockerfile.worker
+# How to build: from root run
+# docker build -t worker_service:v1.0.0 -f rag_service/Dockerfile.worker .  
+### Stage 1: Builder ###
+FROM public.ecr.aws/lambda/python:3.12 AS builder
 
-# Use an official Python runtime as the base image
-FROM python:3.10-slim
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
+# Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install build dependencies and clean up in one layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY rag_service/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip and install application-specific requirements
+COPY rag_service/worker_requirements.txt /app/
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r worker_requirements.txt
 
-# Install fastembed separately
-RUN pip install fastembed
+# Create necessary directories for shared_libs
+RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
 
-# Copy only the download_model.py script
-COPY rag_service/src/utils/download_model.py /app/download_model.py
+# Copy only the necessary shared_libs modules
+COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
+COPY shared_libs/shared_libs/config/ shared_libs/config/
+COPY shared_libs/shared_libs/llm_providers/ shared_libs/llm_providers/
+COPY shared_libs/shared_libs/embeddings/ shared_libs/embeddings/
+COPY shared_libs/shared_libs/models/ shared_libs/models/
+COPY shared_libs/setup.py shared_libs/setup.py
+COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
 
-# Pre-download the embedding model using the download_model.py script
-RUN python /app/download_model.py
+# Install shared_libs as an editable package
+RUN pip install --no-cache-dir -e shared_libs
 
-# Copy shared_libs and install it
-COPY shared_libs /app/shared_libs
-RUN pip install -e ./shared_libs
-
-# Copy the rest of the application code
+# Copy the source code for the API handler
 COPY rag_service/src /app/src
 
-# Copy central config to be accessible in the container
-COPY shared_libs/shared_libs/config /app/config
+### Stage 2: Runtime ###
+FROM public.ecr.aws/lambda/python:3.12
 
-# Convert .env to Unix line endings
-RUN sed -i 's/\r$//' /app/config/.env
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Copy entrypoint script
-COPY rag_service/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# Set work directory
+WORKDIR /app
 
-# Set environment variables for configuration paths
-ENV CONFIG_PATH=/app/config/config.yaml
-ENV DOTENV_PATH=/app/config/.env
+# Install runtime dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
+    libffi-dev \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the Python packages from the builder
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+
+# Copy application code from builder
+COPY --from=builder /app/src /app/src
+
+# Copy shared_libs from builder
+COPY --from=builder /app/shared_libs /app/shared_libs
+
+# Set the configuration paths as environment variables
+ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
+ENV DOTENV_PATH=/app/shared_libs/config/.env
+
+# Set IS_USING_IMAGE_RUNTIME Environment Variable
+ENV IS_USING_IMAGE_RUNTIME=True
+
+# Update PYTHONPATH to include shared_libs for import resolution
+ENV PYTHONPATH="/app/src:/app"
 
 # Expose the port that FastAPI will run on
 EXPOSE 8000
 
+# Set work directory
+WORKDIR /app/src
+
 # Start the worker
-CMD ["python", "handlers.work_handler.py"]
+CMD ["python", "handlers/work_handler.py"]

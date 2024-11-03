@@ -8,11 +8,8 @@ google-generativeai
 httpx
 jsonschema
 langchain_community
-langchain_community
 langchain_text_splitters
-langdetect
 lxml
-mangum
 numpy
 openai
 pandas
@@ -23,6 +20,4 @@ python-dotenv
 PyYAML
 qdrant_client
 Requests
-tqdm
-uvicorn
-watchtower
+
