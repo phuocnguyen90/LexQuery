@@ -2,27 +2,20 @@
 
 from qdrant_client import QdrantClient
 from time import sleep
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from typing import List, Dict, Any
-import asyncio
-
-# Import the embedding function from existing services if needed
-try:
-    from services.get_embedding_function import get_embedding_function  # Absolute import for production
-except ImportError:
-    from get_embedding_function import get_embedding_function  # Relative import for testing
 
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)
 
 # Load configuration using ConfigLoader
-config_loader = ConfigLoader()
-qdrant_config = config_loader.get_config_value('qdrant', {})
+config_loader = AppConfigLoader()
+qdrant_config = config_loader.get('qdrant', {})
 
 QDRANT_URL = qdrant_config.get("url")
 QDRANT_API_KEY = qdrant_config.get("api_key", "")
-COLLECTION_NAME = config_loader.get_config_value("qdrant.collection_name", "legal_qa")
+COLLECTION_NAME = qdrant_config.get("qdrant.collection_name", "legal_qa")
 
 # Ensure environment variables are set properly
 if not QDRANT_URL:
@@ -98,17 +91,3 @@ async def search_qdrant(
         logger.error(f"Error during Qdrant search: {e}")
         return []
 
-if __name__ == "__main__":
-    async def main():
-        # Test the search function locally
-        sample_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]  # Replace with a valid embedding vector
-        results = await search_qdrant(sample_embedding, top_k=3)
-        for idx, result in enumerate(results, 1):
-            print(f"Result {idx}:")
-            print(f"Record ID: {result['record_id']}")
-            print(f"Source: {result['source']}")
-            print(f"Content: {result['content']}")
-            print(f"Model Info: {result.get('model_info', {})}\n")
-
-    asyncio.run(main())
- 

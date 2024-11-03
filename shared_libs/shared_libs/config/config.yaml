@@ -15,7 +15,7 @@ embedding:
       service_url: "http://54.91.154.88:8000/embed"
 
     bedrock:
-      model_id: "amazon.titan-embed-text-v2:0"
+      model_name: "amazon.titan-embed-text-v2:0"
       region_name: "us-east-1"
 
     openai_embedding:
@@ -79,7 +79,7 @@ llm:
     ollama_api_url: "http://localhost:11434"
     # Add other Ollama-specific settings if necessary
 
-# Qdrant Configuration
+# Qdrant Database Configuration
 qdrant:
   api_key: "${QDRANT_API_KEY}"
   url: "${QDRANT_URL}"

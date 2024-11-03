@@ -2,26 +2,26 @@
 
 import logging
 import requests  # Make sure the requests library is installed
-from .api_provider import APIProvider
+from .llm_provider import LLMProvider
 from typing import Optional, List, Dict, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class OllamaProvider(APIProvider):
+class OllamaProvider(LLMProvider):
     """
     A modular provider for interacting with the Ollama API.
     """
 
-    def __init__(self, config: Dict[str, Any], requirements: str):
+    def __init__(self, config: Dict[str, Any]):
         """
         Initialize the OllamaProvider with the specified configuration.
 
         :param config: Configuration dictionary containing API keys and settings.
         :param requirements: Preprocessing requirements as a string.
         """
-        super().__init__(config, requirements)  # Pass both config and requirements to the parent
+        super().__init__() 
         try:
             self.base_url = config.get("ollama_api_url", "http://localhost:11434")  # Default to local Ollama instance
             self.model_name = config.get('model_name', "llama3.1")

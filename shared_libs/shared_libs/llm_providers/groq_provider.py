@@ -5,33 +5,32 @@ import asyncio
 from typing import Optional, List, Dict, Any
 from groq import Groq
 from functools import partial
-from .api_provider import APIProvider
+from .llm_provider import LLMProvider
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class GroqProvider(APIProvider):
+class GroqProvider(LLMProvider):
     """
     A modular provider for interacting with the Groq LLM API.
     """
 
-    def __init__(self, config: Dict[str, Any], requirements: str):
+    def __init__(self, config: Dict[str, Any]):
         """
         Initialize the GroqProvider with the specified configuration.
 
         :param config: Configuration dictionary containing API keys and settings.
         :param requirements: Preprocessing requirements as a string.
         """
-        super().__init__(config, requirements)
+        super().__init__(config)
         try:
             api_key = config.get('api_key')
             if not api_key:
                 logger.error("Groq API key is missing.")
                 raise ValueError("Groq API key is missing.")
             self.client = Groq(api_key=api_key)
-            self.model_name = config.get('model_name', "llama-3.1-8b-instant")
-            self.embedding_model_name = config.get('embedding_model_name', "groq-embedding-001")
+            self.model_name = config.get('model_name', "llama-3.1-8b-instant")            
             self.temperature = config.get('temperature', 0.7)
             self.max_output_tokens = config.get('max_output_tokens', 4096)
             logger.info("GroqProvider initialized successfully.")

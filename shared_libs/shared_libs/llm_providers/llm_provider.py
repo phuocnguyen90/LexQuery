@@ -1,14 +1,14 @@
-# src/providers/api_provider.py
+# src/providers/llm_provider.py
 
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 
-class APIProvider(ABC):
+class LLMProvider(ABC):
     """
     Abstract base class for API providers.
     """
 
-    def __init__(self, config: Dict[str, Any], requirements: str):
+    def __init__(self, config: Dict[str, Any]):
         """
         Initialize the API provider with configuration and processing requirements.
         
@@ -16,7 +16,7 @@ class APIProvider(ABC):
         :param requirements: Preprocessing requirements as a string.
         """
         self.config = config
-        self.requirements = requirements
+        
 
     @abstractmethod
     async def send_single_message(self, prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:

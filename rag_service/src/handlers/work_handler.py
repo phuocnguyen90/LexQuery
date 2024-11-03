@@ -1,9 +1,8 @@
 # rag_service\src\handlers\work_handler.py
 import os
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.config.config_loader import AppConfigLoader, LLMProviderConfigLoader
 from shared_libs.utils.logger import Logger
-from shared_libs.utils.cache import Cache
-from shared_libs.utils.provider_utils import load_llm_provider
+from shared_libs.llm_providers import ProviderFactory
 import sys
 import json
 import asyncio
@@ -20,8 +19,11 @@ from services.query_rag import query_rag
 logger = Logger().get_logger(module_name=__name__)
 
 # Load configuration and LLM provider
-config = ConfigLoader()
-llm_provider = load_llm_provider()
+app_config_loader = AppConfigLoader()
+config = app_config_loader.config
+provider_name = config.get('llm', {}).get('provider', 'groq')
+llm_settings = config.get('llm', {}).get(provider_name, {})
+llm_provider = ProviderFactory.get_provider(provider_name, llm_settings)
 
 # Worker configuration
 POLL_INTERVAL = 10  # seconds
@@ -42,6 +44,17 @@ async def handler(event, context):
                 continue  # Skip processing if no query_id
 
             conversation_history = payload.get('conversation_history', [])
+            llm_provider_name = payload.get('llm_provider')
+            if llm_provider_name:
+                provider_config = config.get('llm', {}).get(llm_provider_name, {})
+                if provider_config:
+                    provider = ProviderFactory.get_provider(llm_provider_name, provider_config)
+                    logger.info(f"Using specified LLM provider: {llm_provider_name}")
+                else:
+                    logger.error(f"Specified LLM provider '{llm_provider_name}' not found in configuration. Using default provider.")
+                    provider = llm_provider  # Use default provider
+            else:
+                provider = llm_provider
 
             query_item = await QueryModel.get_item(query_id)
             if not query_item:
@@ -49,7 +62,7 @@ async def handler(event, context):
                 continue
 
             # Invoke RAG processing with cache handling
-            response = await query_rag(query_item, provider=llm_provider, conversation_history=conversation_history)
+            response = await query_rag(query_item, provider=provider, conversation_history=conversation_history)
 
             # Update the query item with the response
             query_item.answer_text = response.response_text
@@ -78,6 +91,19 @@ async def process_message(message):
     try:
         # Deserialize message
         body = json.loads(message['Body'])
+        llm_provider_name = body.get('llm_provider')
+        
+        if llm_provider_name:            
+            # Get provider configuration from config
+            provider_config = config.get('llm', {}).get(llm_provider_name, {})
+            if provider_config:
+                provider = ProviderFactory.get_provider(llm_provider_name, provider_config)
+                logger.info(f"Using specified LLM provider: {llm_provider_name}")
+            else:
+                logger.error(f"Specified LLM provider '{llm_provider_name}' not found in configuration. Using default provider.")
+                provider = llm_provider  # Use default provider
+        else:
+            provider = llm_provider  # Use default provider
         query_id = body.get('query_id')
         if not query_id:
             logger.error("No query_id found in message body.")
@@ -105,7 +131,11 @@ async def process_message(message):
         )
 
         # Perform RAG to generate response
-        response = await query_rag(query_item, provider=llm_provider, conversation_history=conversation_history)
+        response = await query_rag(
+            query_item,
+            conversation_history=conversation_history,
+            provider=provider
+        )
 
         # Update the query item with the response
         query_item.answer_text = response.response_text
@@ -182,22 +212,7 @@ async def poll_queue():
         await asyncio.sleep(POLL_INTERVAL)
 
 # For local testing
-# async def main():
-    #"""
-    #For local testing.
-    #"""
-    #logger.info("Running example RAG call.")
-    #query_item = QueryModel(
-    #    query_text="làm sao để kinh doanh vũ trường?"
-    #)
-    
-    # Since query_rag is an async function, we need to await its result.
-    #response = await query_rag(query_item)
-    #print(f"Received: {response}")
 
-# if __name__ == "__main__":
-    # For local testing: use asyncio.run to execute the async main function.
-    # asyncio.run(main())
 def main():
     """
     Entry point for the worker handler.

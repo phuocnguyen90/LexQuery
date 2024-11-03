@@ -2,20 +2,20 @@
 
 import logging
 import openai  # Make sure the OpenAI library is installed
-from .api_provider import APIProvider
+from .llm_provider import LLMProvider
 from typing import Optional, List, Dict, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class OpenAIProvider(APIProvider):
+class OpenAIProvider(LLMProvider):
     """
     A modular provider for interacting with the OpenAI API.
     """
 
-    def __init__(self, config: Dict[str, Any], requirements: str):
-        super().__init__(config, requirements)  # Pass both config and requirements to the parent
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__()  
         try:
             api_key = config.get("api_key")
             if not api_key:

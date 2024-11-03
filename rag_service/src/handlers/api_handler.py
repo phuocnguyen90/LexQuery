@@ -13,7 +13,7 @@ from functools import partial
 from typing import List, Dict, Optional
 
 # Import from shared_libs
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 
 
@@ -24,7 +24,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.query_model import QueryModel
 
 
-config = ConfigLoader()
+config = AppConfigLoader()
 # Initialize logger
 logger = Logger.get_logger(module_name=__name__)
 
@@ -48,6 +48,7 @@ deployment_handler = Mangum(app)
 class SubmitQueryRequest(BaseModel):
     query_text: str
     conversation_history: Optional[List[Dict[str, str]]] = None  # Optional field
+    llm_provider: Optional[str] = None
 
 # API Endpoints
 @app.get("/")
@@ -83,6 +84,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
     """
     try:
         query_text = request.query_text
+        llm_provider_name = request.llm_provider
         query_id = str(uuid.uuid4())  # Generate unique query_id
         conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
@@ -105,7 +107,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
             logger.debug(f"New query object created: {new_query.query_id}")
         
             # Enqueue the query for processing
-            await invoke_worker(new_query, conversation_history)
+            await invoke_worker(new_query, conversation_history, llm_provider_name)
 
             # Step 3: Return the query_id to the client
             return {
@@ -113,6 +115,8 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
                 "message": "Your query has been received and is being processed."
             }
         else:
+            from services import query_rag
+            
             # No worker available, process synchronously
             logger.info("No worker available. Processing query synchronously.")
             response = await query_rag(
@@ -120,7 +124,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
                 conversation_history=conversation_history
             )
             # Store the response in cache or database
-            await Cache.set(query_id, response.dict())  # Assuming Cache.set uses query_id as key
+            await QueryModel.put_item()
             logger.info(f"Query processed synchronously for query_id: {query_id}")
 
             return {
@@ -136,12 +140,14 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         logger.error(f"Failed to handle submit_query endpoint: {str(exc)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-async def invoke_worker(query: QueryModel, conversation_history: List[Dict[str, str]]):
+async def invoke_worker(query: QueryModel, conversation_history: List[Dict[str, str]], llm_provider_name: Optional[str] = None):
     """Enqueue the query for processing by sending a message to SQS."""
     try:
         # Convert QueryModel to dict and then to JSON
         payload = query.dict()
         payload["conversation_history"] = conversation_history
+        if llm_provider_name:
+            payload["llm_provider"] = llm_provider_name
         message_body = json.dumps(payload)
         logger.debug(f"Sending message to SQS: {message_body}")
 
@@ -202,9 +208,6 @@ async def local_test_submit_query(request: SubmitQueryRequest):
     new_query.sources = response_data["sources"]
     new_query.is_complete = response_data["is_complete"]
     await new_query.put_item()
-
-    # Store response in cache
-    # await Cache.set(query_text, response_data, expiry=1800)  # Ensure expiry is set
 
     logger.info("Query processed and cached during local testing")
 
