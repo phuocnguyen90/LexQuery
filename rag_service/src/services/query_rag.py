@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from shared_libs.llm_providers import ProviderFactory  
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
+from get_embedding_function import get_embedding_function
 
 try:
     from services.search_qdrant import search_qdrant    # Absolute import for use in production
@@ -125,29 +126,24 @@ async def query_rag(
         current_embedding_mode = config.get('embedding', {}).get('mode', 'local').lower()
         logger.debug(f"Using embedding mode from config: {current_embedding_mode}")
 
+    # Get the embedding function based on the mode
+    embedding_function = get_embedding_function()
     # Initialize the embedding vector
     embedding_vector = None
 
-    if current_embedding_mode == "local":
-        # Use local embedding function
-        embedding_vector = await local_embed(query_text)
-        if embedding_vector is None:
+    if current_embedding_mode in ["local", "api"]:
+        try:
+            embedding_vector = await embedding_function(query_text)
+            if embedding_vector is None:
+                raise ValueError("Embedding vector is None.")
+        except Exception as e:
+            logger.error(f"Failed to generate embedding for query '{query_text}': {e}")
             return QueryResponse(
                 query_text=query_text,
                 response_text="An error occurred while creating embedding.",
                 sources=[],
                 timestamp=int(time.time())
             )
-    elif current_embedding_mode == "api":
-        # Use embedding microservice API (not implemented here)
-        # You can add the implementation as needed
-        logger.error("API embedding mode is not implemented.")
-        return QueryResponse(
-            query_text=query_text,
-            response_text="API embedding mode is not available.",
-            sources=[],
-            timestamp=int(time.time())
-        )
     else:
         logger.error(f"Unsupported embedding mode '{current_embedding_mode}'.")
         return QueryResponse(

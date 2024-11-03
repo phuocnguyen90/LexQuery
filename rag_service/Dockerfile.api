@@ -32,8 +32,6 @@ RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_lib
 COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
 COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
 COPY shared_libs/shared_libs/config/ shared_libs/config/
-COPY shared_libs/shared_libs/prompts/ shared_libs/prompts/
-COPY shared_libs/shared_libs/schemas/ shared_libs/schemas/
 COPY shared_libs/setup.py shared_libs/setup.py
 COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
 
