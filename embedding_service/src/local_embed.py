@@ -8,9 +8,9 @@ from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.utils.logger import Logger
 from shared_libs.models.embed_models import EmbeddingRequest, EmbeddingResponse
 
-from shared_libs.config import ConfigLoader
+from shared_libs.config import AppConfigLoader
 
-app_config=ConfigLoader()
+app_config=AppConfigLoader()
 
 
 logger = Logger.get_logger(module_name=__name__)

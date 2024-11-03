@@ -5,7 +5,13 @@ from pydantic import Field, SecretStr, ConfigDict
 from pydantic_settings import BaseSettings
 from typing import Dict, Optional
 from typing_extensions import Literal
-from shared_libs.config.config_loader import ConfigLoader
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config.config_loader import AppConfigLoader
+
+embedding_config=AppConfigLoader().get('embedding')
+
 import os
 
 # Base Configuration
@@ -92,21 +98,20 @@ class EmbeddingConfig(BaseSettings):
         Parses the configuration using the ConfigLoader to build embedding configurations.
         """
         # Instantiate ConfigLoader and extract embedding configuration
-        loader = ConfigLoader()
-        embedding_section = loader.get_embedding_config()
+        
 
         # Prepare containers for parsed configurations
         parsed_api_providers = {}
         parsed_library_providers = {}
 
         # Parse API providers from embedding_section
-        api_providers = embedding_section.get('api_providers', {})
+        api_providers = embedding_config.get('api_providers', {})
 
         for provider_name, provider_data in api_providers.items():
             if provider_name == "bedrock":
                 parsed_api_providers[provider_name] = BedrockEmbeddingConfig(
                     provider='bedrock',
-                    model_id=provider_data['model_id'],
+                    model_id=provider_data['model_name'],
                     region_name=provider_data['region_name'],
                     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
                     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "")
@@ -141,7 +146,7 @@ class EmbeddingConfig(BaseSettings):
             
 
         # Parse library providers from embedding_section
-        library_providers = embedding_section.get('library_providers', {})
+        library_providers = embedding_config.get('library_providers', {})
         
         if 'local' in library_providers:
             local_config = library_providers['local']

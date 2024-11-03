@@ -38,8 +38,6 @@ RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/models shared_libs
 # Copy only the necessary shared_libs modules
 COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
 COPY shared_libs/shared_libs/config/ shared_libs/config/
-COPY shared_libs/shared_libs/prompts/ shared_libs/prompts/
-COPY shared_libs/shared_libs/schemas/ shared_libs/schemas/
 COPY shared_libs/shared_libs/models/embed_models.py shared_libs/models/embed_models.py
 COPY shared_libs/shared_libs/embeddings/ shared_libs/embeddings/
 COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py

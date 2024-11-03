@@ -1,18 +1,16 @@
 # embedding_service\src\main.py
 
 from fastapi import FastAPI, HTTPException
-from typing import List, Optional
 from shared_libs.embeddings.embedder_factory import EmbedderFactory
 from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.utils.logger import Logger
 from shared_libs.models.embed_models import EmbeddingRequest, EmbeddingResponse
 
-from shared_libs.config import ConfigLoader
+from shared_libs.config import AppConfigLoader
 import uvicorn
 import os
-import json
 
-app_config=ConfigLoader()
+app_config=AppConfigLoader()
 
 
 logger = Logger.get_logger(module_name=__name__)
