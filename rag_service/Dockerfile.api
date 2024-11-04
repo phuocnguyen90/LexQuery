@@ -17,17 +17,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
 
 # Copy shared_libs modules
-COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
-COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
-COPY shared_libs/shared_libs/config/ shared_libs/config/
-COPY shared_libs/setup.py shared_libs/setup.py
-COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
+COPY shared_libs/shared_libs/utils/logger.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/utils/aws_auth_validation.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/aws_auth_validation.py
+COPY shared_libs/shared_libs/config/ ${LAMBDA_TASK_ROOT}/shared_libs/config/
+COPY shared_libs/setup.py ${LAMBDA_TASK_ROOT}/shared_libs/setup.py
+COPY shared_libs/shared_libs/__init__.py ${LAMBDA_TASK_ROOT}/shared_libs/__init__.py
 
 # Install shared_libs as an editable package
 RUN pip install --no-cache-dir -e shared_libs
 
 # Copy the source code for the API handler
-COPY rag_service/src /var/task/src
+COPY rag_service/src ${LAMBDA_TASK_ROOT}
 
 ### Stage 2: Runtime ###
 FROM public.ecr.aws/lambda/python:3.12
@@ -35,6 +35,7 @@ FROM public.ecr.aws/lambda/python:3.12
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV IS_USING_IMAGE_RUNTIME=True
 
 # Set work directory
 WORKDIR /var/task
@@ -42,3 +43,5 @@ WORKDIR /var/task
 # Copy the Python packages and application code from the builder
 COPY --from=builder /var/task/. /var/task/
 
+# Define the CMD to point to the handler
+CMD ["handlers.api_handler.handler"]

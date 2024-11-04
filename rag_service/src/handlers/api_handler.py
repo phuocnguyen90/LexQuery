@@ -42,7 +42,7 @@ sqs_client_sync = boto3.client('sqs', region_name=AWS_REGION)
 app = FastAPI()
 
 # Entry point for AWS Lambda using Mangum
-deployment_handler = Mangum(app)
+handler = Mangum(app)
 
 # Data models
 class SubmitQueryRequest(BaseModel):

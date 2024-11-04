@@ -9,18 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Set work directory
-WORKDIR /app
-
-# Install build dependencies and clean up in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libssl-dev \
-    libffi-dev \
-    bzip2 \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /var/task
 
 # Upgrade pip and install application-specific requirements
-COPY rag_service/worker_requirements.txt /app/
+COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r worker_requirements.txt
 
@@ -28,20 +20,20 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
 
 # Copy only the necessary shared_libs modules
-COPY shared_libs/shared_libs/utils/logger.py shared_libs/utils/logger.py
-COPY shared_libs/shared_libs/utils/aws_auth_validation.py shared_libs/utils/aws_auth_validation.py
-COPY shared_libs/shared_libs/config/ shared_libs/config/
-COPY shared_libs/shared_libs/llm_providers/ shared_libs/llm_providers/
-COPY shared_libs/shared_libs/embeddings/ shared_libs/embeddings/
-COPY shared_libs/shared_libs/models/ shared_libs/models/
-COPY shared_libs/setup.py shared_libs/setup.py
-COPY shared_libs/shared_libs/__init__.py shared_libs/__init__.py
+COPY shared_libs/shared_libs/utils/logger.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/logger.py
+COPY shared_libs/shared_libs/utils/aws_auth_validation.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/aws_auth_validation.py
+COPY shared_libs/shared_libs/config/ ${LAMBDA_TASK_ROOT}/shared_libs/config/
+COPY shared_libs/shared_libs/llm_providers/ ${LAMBDA_TASK_ROOT}/shared_libs/llm_providers/
+COPY shared_libs/shared_libs/embeddings/ ${LAMBDA_TASK_ROOT}/shared_libs/embeddings/
+COPY shared_libs/shared_libs/models/ ${LAMBDA_TASK_ROOT}/shared_libs/models/
+COPY shared_libs/setup.py ${LAMBDA_TASK_ROOT}/shared_libs/setup.py
+COPY shared_libs/shared_libs/__init__.py ${LAMBDA_TASK_ROOT}/shared_libs/__init__.py
 
 # Install shared_libs as an editable package
 RUN pip install --no-cache-dir -e shared_libs
 
-# Copy the source code for the API handler
-COPY rag_service/src /app/src
+# Copy the source code for the worker handler
+COPY rag_service/src ${LAMBDA_TASK_ROOT}/
 
 ### Stage 2: Runtime ###
 FROM public.ecr.aws/lambda/python:3.12
@@ -49,41 +41,13 @@ FROM public.ecr.aws/lambda/python:3.12
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-
-# Set work directory
-WORKDIR /app
-
-# Install runtime dependencies and clean up in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev \
-    libffi-dev \
-    bzip2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy the Python packages from the builder
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
-
-# Copy application code from builder
-COPY --from=builder /app/src /app/src
-
-# Copy shared_libs from builder
-COPY --from=builder /app/shared_libs /app/shared_libs
-
-# Set the configuration paths as environment variables
-ENV CONFIG_PATH=/app/shared_libs/config/config.yaml
-ENV DOTENV_PATH=/app/shared_libs/config/.env
-
-# Set IS_USING_IMAGE_RUNTIME Environment Variable
 ENV IS_USING_IMAGE_RUNTIME=True
-
-# Update PYTHONPATH to include shared_libs for import resolution
-ENV PYTHONPATH="/app/src:/app"
-
-# Expose the port that FastAPI will run on
-EXPOSE 8000
-
 # Set work directory
-WORKDIR /app/src
+WORKDIR /var/task
 
-# Start the worker
-CMD ["python", "handlers/work_handler.py"]
+# Copy the Python packages and application code from the builder
+COPY --from=builder /var/task/. /var/task/
+
+
+# Define the CMD to point to the handler
+CMD ["handlers.work_handler.handler"]

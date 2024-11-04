@@ -1,0 +1,28 @@
+# template.yaml
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Template for RAG Service
+
+Resources:
+  ApiServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: 396608786775.dkr.ecr.us-east-1.amazonaws.com/api_service:v4.0.3
+      FunctionName: API_handler
+      MemorySize: 256
+      Timeout: 30
+      Architectures:
+        - x86_64
+
+  WorkerServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: 396608786775.dkr.ecr.us-east-1.amazonaws.com/work_service:v2.0.0
+      FunctionName: RagWorker
+      MemorySize: 512
+      Timeout: 60
+      Architectures:
+        - x86_64
