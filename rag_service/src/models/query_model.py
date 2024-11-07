@@ -18,14 +18,15 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 # Local file setup for development mode
-LOCAL_STORAGE_DIR = Path("local_data")
-LOCAL_STORAGE_DIR.mkdir(exist_ok=True)
-LOCAL_QUERY_FILE = LOCAL_STORAGE_DIR / "query_data.json"
+
 
 # Initialize logger
 logger = Logger.get_logger(module_name=__name__)
 
+# Use the /tmp directory
+LOCAL_STORAGE_DIR = Path('/tmp/local_data')
 
+LOCAL_QUERY_FILE = LOCAL_STORAGE_DIR / "query_data.json"
 
 class QueryModel(BaseModel):
     """
@@ -302,6 +303,10 @@ class QueryModel(BaseModel):
     async def save_to_local(self):
         """Asynchronously save the current query model to a local JSON file."""
         try:
+            # Use the /tmp directory
+            
+            LOCAL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+            
             logger.debug(f"Saving query data locally for query_id: {self.query_id}")
             data = []
             if LOCAL_QUERY_FILE.exists():
@@ -341,6 +346,7 @@ class QueryModel(BaseModel):
         """
         try:
             logger.debug(f"Loading query from local storage for query_id: {query_id}")
+            
             if LOCAL_QUERY_FILE.exists():
                 async with aiofiles.open(LOCAL_QUERY_FILE, 'r', encoding='utf-8') as f:
                     content = await f.read()

@@ -10,6 +10,5 @@ pydantic
 python-dotenv
 PyYAML
 qdrant_client
-tqdm
 uvicorn
 pydantic_settings

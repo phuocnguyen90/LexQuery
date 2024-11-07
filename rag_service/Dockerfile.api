@@ -2,46 +2,25 @@
 # How to build: from root run
 # docker build -t api_service:v1.0.0 -f rag_service/Dockerfile.api .  
 
-### Stage 1: Builder ###
-FROM public.ecr.aws/lambda/python:3.12 AS builder
-
-# Set work directory
-WORKDIR /var/task
-
-# Copy and install Python dependencies
-COPY rag_service/api_requirements.txt ${LAMBDA_TASK_ROOT}
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r api_requirements.txt
-
-# Create necessary directories for shared_libs
-RUN mkdir -p shared_libs/utils shared_libs/config shared_libs/prompts shared_libs/schemas
-
-# Copy shared_libs modules
-COPY shared_libs/shared_libs/utils/logger.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/logger.py
-COPY shared_libs/shared_libs/utils/aws_auth_validation.py ${LAMBDA_TASK_ROOT}/shared_libs/utils/aws_auth_validation.py
-COPY shared_libs/shared_libs/config/ ${LAMBDA_TASK_ROOT}/shared_libs/config/
-COPY shared_libs/setup.py ${LAMBDA_TASK_ROOT}/shared_libs/setup.py
-COPY shared_libs/shared_libs/__init__.py ${LAMBDA_TASK_ROOT}/shared_libs/__init__.py
-
-# Install shared_libs as an editable package
-RUN pip install --no-cache-dir -e shared_libs
-
-# Copy the source code for the API handler
-COPY rag_service/src ${LAMBDA_TASK_ROOT}
-
-### Stage 2: Runtime ###
+# Use the AWS Lambda Python 3.12 base image
 FROM public.ecr.aws/lambda/python:3.12
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV IS_USING_IMAGE_RUNTIME=True
+# Copy the requirements file into the image
+COPY rag_service/api_requirements.txt ${LAMBDA_TASK_ROOT}
 
-# Set work directory
-WORKDIR /var/task
+RUN pip install --no-cache-dir -r api_requirements.txt --target /var/lang/lib/python3.12/site-packages
 
-# Copy the Python packages and application code from the builder
-COPY --from=builder /var/task/. /var/task/
+# Copy shared libraries
+COPY shared_libs/ ${LAMBDA_TASK_ROOT}
+RUN pip install -e shared_libs
+
+# Copy the source code for the API handler into /var/task
+COPY rag_service/src/ ${LAMBDA_TASK_ROOT}
+COPY rag_service/src/handlers/api_handler.py ${LAMBDA_TASK_ROOT}
+
+# Set the working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
+
 
 # Define the CMD to point to the handler
-CMD ["handlers.api_handler.handler"]
+CMD ["api_handler.handler"]

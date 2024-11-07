@@ -1,7 +1,6 @@
 # src/handlers/api_handler.py
 
 import os
-import uvicorn
 import boto3
 import json
 from fastapi import FastAPI, HTTPException
@@ -20,6 +19,7 @@ from shared_libs.utils.logger import Logger
 import sys
 # Add parent directory to the sys.path to access shared modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+print("Python sys.path:", sys.path)
 # Import internal model
 from models.query_model import QueryModel
 
@@ -52,7 +52,7 @@ class SubmitQueryRequest(BaseModel):
 
 # API Endpoints
 @app.get("/")
-async def index():
+def index():
     return {"Hello": "World"}
 
 @app.get("/get_query")
@@ -174,11 +174,16 @@ async def invoke_worker(query: QueryModel, conversation_history: List[Dict[str, 
         raise HTTPException(status_code=500, detail="Failed to enqueue query for processing")
 
 # Local Development Function to Test API Endpoints
+
 if __name__ == "__main__":
-    # For local development testing
-    port = 8000
-    logger.info(f"Running the FastAPI server on port {port}.")
-    uvicorn.run("handlers.api_handler:app", host="0.0.0.0", port=port)
+    if os.getenv("RUN_MODE") == "local":
+        import uvicorn
+        port = 8000
+        logger.info(f"Running the FastAPI server on port {port}.")
+        uvicorn.run("handlers.api_handler:app", host="0.0.0.0", port=port)
+    else:
+        # Lambda handler
+        handler = Mangum(app)
 
 # Add a local testing endpoint for convenience
 @app.post("/local_test_submit_query")
