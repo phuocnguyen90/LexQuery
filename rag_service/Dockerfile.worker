@@ -27,4 +27,4 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 
 
 # Define the CMD to point to the handler
-CMD ["work_handler.handler"]
+CMD ["main.handler"]
