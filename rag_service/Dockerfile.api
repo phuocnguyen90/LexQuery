@@ -5,15 +5,20 @@
 # Use the AWS Lambda Python 3.12 base image
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install Python dependencies into LAMBDA_TASK_ROOT
-COPY rag_service/api_requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
-
+# Install basic Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target /var/lang/lib/python3.12/site-packages
 
+# Install API service Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/api_requirements.txt ${LAMBDA_TASK_ROOT}/api_requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/api_requirements.txt --target /var/lang/lib/python3.12/site-packages
+
 # FOR DEVELOPMENT: Correct the shebang in uvicorn and copy it to /var/lang/bin
-RUN sed -i '1s|^#!.*|#!/var/lang/bin/python3|' /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
-    cp /var/lang/lib/python3.12/site-packages/bin/uvicorn /var/lang/bin/uvicorn && \
-    chmod +x /var/lang/bin/uvicorn
+
+# RUN chmod +w /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
+#    sed -i '1s|^#!.*|#!/var/lang/bin/python3|' /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
+#    cp /var/lang/lib/python3.12/site-packages/bin/uvicorn /var/lang/bin/uvicorn && \
+#    chmod +x /var/lang/bin/uvicorn
 
 
 # Install shared libraries into LAMBDA_TASK_ROOT

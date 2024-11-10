@@ -1,19 +1,22 @@
 # rag_service\src\handlers\work_handler.py
-import os
-from shared_libs.config.config_loader import AppConfigLoader
-from shared_libs.utils.logger import Logger
-from shared_libs.llm_providers import ProviderFactory
-import sys
+
 import json
 import asyncio
 import boto3
-from botocore.exceptions import ClientError
+
 from functools import partial
 from hashlib import md5
-# Add parent directory to the sys.path to access shared modules
+
+import os
+import sys
+# Add the `/var/task` directory and its subdirectories to `sys.path`
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from models.query_model import QueryModel
-from services.query_rag import query_rag
+from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.utils.logger import Logger
+from shared_libs.llm_providers import ProviderFactory
+
 
 # Initialize the logger
 logger = Logger().get_logger(module_name=__name__)
@@ -52,6 +55,7 @@ async def handler(event, context):
 
 async def process_direct_invocation(payload):
     try:
+        from services.query_rag import query_rag
         query_id = payload.get('query_id')
         if not query_id:
             logger.error("No query_id found in payload.")
@@ -111,6 +115,7 @@ async def process_sqs_records(message):
     Process a single SQS message.
     """
     try:
+        from services.query_rag import query_rag
         # Deserialize message
         body = json.loads(message['Body'])
         llm_provider_name = body.get('llm_provider')

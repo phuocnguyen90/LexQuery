@@ -24,7 +24,7 @@ COPY shared_libs/ /tmp/shared_libs/
 RUN pip install -e /tmp/shared_libs --target /tmp/python/lib/python3.12/site-packages
 
 # Copy dependencies to Lambda directories
-COPY --from=builder_api /tmp/python/lib/python3.12/site-packages /var/lang/lib/python3.12/site-packages
+COPY /tmp/python/lib/python3.12/site-packages /var/lang/lib/python3.12/site-packages
 
 # Copy shared libraries
 COPY shared_libs/ /var/task/shared_libs/

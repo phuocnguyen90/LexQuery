@@ -26,11 +26,28 @@ logger = Logger.get_logger(module_name=__name__)
 # Environment variables
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 WORKER_LAMBDA_NAME = os.getenv("WORKER_LAMBDA_NAME", "RagWorker")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 # Initialize synchronous boto3 clients
-lambda_client = boto3.client("lambda", region_name=AWS_REGION)
-ecs_client = boto3.client("ecs", region_name=AWS_REGION)
-sqs_client_sync = boto3.client('sqs', region_name=AWS_REGION)
+lambda_client = boto3.client(
+    'lambda',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
+ecs_client = boto3.client(
+    'ecs',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
+sqs_client = boto3.client(
+    'sqs',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
 
 # Initialize FastAPI application
 app = FastAPI()

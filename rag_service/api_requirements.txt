@@ -1,14 +1,4 @@
-aiofiles
-boto3
-botocore
 fastapi
 jsonschema
 mangum
-numpy
-pandas
-pydantic
-python-dotenv
-PyYAML
-qdrant_client
 uvicorn
-pydantic_settings

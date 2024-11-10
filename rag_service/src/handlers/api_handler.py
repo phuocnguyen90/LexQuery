@@ -21,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import internal model
 from models.query_model import QueryModel
-from services.query_rag import query_rag  # Ensure this is available for local processing
+from services.query_rag import query_rag  
 
 config = AppConfigLoader()
 # Initialize logger
@@ -166,7 +166,7 @@ else:
     if not WORKER_LAMBDA_NAME:
         logger.error("WORKER_LAMBDA_NAME environment variable is not set.")
         raise Exception("WORKER_LAMBDA_NAME environment variable is required in production.")
-    processor = LambdaWorkerProcessor(lambda_client, WORKER_LAMBDA_NAME, sqs_client_sync, SQS_QUEUE_URL)
+    processor = LambdaWorkerProcessor(lambda_client, WORKER_LAMBDA_NAME, sqs_client, SQS_QUEUE_URL)
     logger.info("Running in Production Mode: Using LambdaWorkerProcessor.")
 
 # API Endpoints

@@ -5,10 +5,13 @@
 # Use the AWS Lambda Python 3.12 base image
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install Python dependencies into LAMBDA_TASK_ROOT
-COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+# Install basic Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target /var/lang/lib/python3.12/site-packages
 
+# Install API service Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}/worker_requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/worker_requirements.txt --target /var/lang/lib/python3.12/site-packages
 # Install shared libraries into LAMBDA_TASK_ROOT
 COPY shared_libs/ ${LAMBDA_TASK_ROOT}
 RUN pip install -e shared_libs

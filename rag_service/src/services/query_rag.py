@@ -6,20 +6,23 @@ import os
 import asyncio
 from pydantic import BaseModel
 
+import os
+import sys
+
+# Ensure the parent directory is added to `sys.path` for consistent imports
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 # Imports from shared_libs
-from shared_libs.llm_providers import ProviderFactory  
+from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
-# Add parent directory to the sys.path to access shared modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Imports from services
+from services.search_qdrant import search_qdrant
+from services.get_embedding_function import get_embedding_function
 
-try:
-    from services.search_qdrant import search_qdrant    # Absolute import for use in production
-    from services.get_embedding_function import get_embedding_function
-except ImportError:
-    from search_qdrant import search_qdrant    # Relative import for direct script testing
-    from get_embedding_function import get_embedding_function 
 
 # Load configuration
 config_loader = AppConfigLoader()
