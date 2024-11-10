@@ -164,4 +164,4 @@ cython_debug/
 .github
 /local_data
 /logs
-shared_libs.zip
+*.zip

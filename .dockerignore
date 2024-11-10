@@ -1,15 +1,18 @@
-# .dockerignore
+# Exclude version control directories
+.git
+.gitignore
 
-# Exclude everything
-**
+# Exclude Python cache
+__pycache__/
+*.pyc
 
-# Include specific directories and files for embedding_service
-!embedding_service/
+
+# Exclude unnecessary files
+tests/
+docs/
+
+# Include necessary directories
 !rag_service/
 !shared_libs/
-!cdk-infra/
-!*.py
-!*.txt
-!*.yaml
-!*.env
-!Dockerfile.*
+!embedding_service/
+!rag_service/entrypoint.sh 

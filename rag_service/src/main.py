@@ -42,7 +42,7 @@ handler = Mangum(app)
 class SubmitQueryRequest(BaseModel):
     query_text: str
     conversation_history: Optional[List[Dict[str, str]]] = None  # Optional field
-    llm_provider: Optional[str] = None
+    llm_provider_name: Optional[str] = None
 
 class SubmitQueryResponse(BaseModel):
     query_id: str
@@ -61,16 +61,17 @@ async def get_query_endpoint(query_id: str):
     logger.debug(f"Fetching query with ID: {query_id}")
     query = await QueryModel.get_item(query_id)
     if query:
-        return SubmitQueryResponse(
-            query_id=query.query_id,
-            response_text=query.answer_text,
-            sources=query.sources,
-            timestamp=query.timestamp
-        )
+        return {
+            "query_id": query.query_id,
+            "query_text": query.query_text,
+            "answer_text": query.answer_text,
+            "is_complete": query.is_complete,
+            "sources": query.sources,
+        }
     logger.warning(f"Query not found for ID: {query_id}")
     raise HTTPException(status_code=404, detail="Query not found")
 
-@app.post("/submit_query", response_model=SubmitQueryResponse)
+@app.post("/submit_query")
 async def submit_query_endpoint(request: SubmitQueryRequest):
     """
     Endpoint to submit a user query for processing synchronously.
@@ -80,7 +81,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
     """
     try:
         query_text = request.query_text
-        llm_provider_name = request.llm_provider
+        llm_provider_name = request.llm_provider_name
         query_id = str(uuid.uuid4())  # Generate unique query_id
         conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: '{query_text}', assigned query_id: {query_id}")
@@ -102,7 +103,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         response = await query_rag(
             query_item=query_item,
             conversation_history=conversation_history,
-            llm_provider=llm_provider_name
+            llm_provider_name=llm_provider_name
         )
 
         # Step 3: Update and Save the QueryModel with the Response
@@ -114,12 +115,12 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         logger.info(f"Query processed synchronously for query_id: {query_id}")
 
         # Step 4: Return the Response to the Client
-        return SubmitQueryResponse(
-            query_id=query_id,
-            response_text=response.response_text,
-            sources=response.sources,
-            timestamp=response.timestamp
-        )
+        return {
+            "query_id": query_id,
+            "response_text": response.response_text,
+            "sources": response.sources,
+            "timestamp": response.timestamp
+        }
 
     except Exception as exc:
         logger.error(f"Failed to handle submit_query endpoint: {str(exc)}", exc_info=True)

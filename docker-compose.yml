@@ -1,0 +1,57 @@
+# legal_qa_rag/docker-compose.yml
+
+services:
+  api:
+    build:
+      context: ./
+      dockerfile: rag_service/Dockerfile.api
+    image: api_service:dev
+    environment:
+      - DEVELOPMENT_MODE=True
+      - CMD_HANDLER=api
+      - AWS_REGION=us-east-1
+      - SQS_QUEUE_URL=http://sqs.local:4566/000000000000/your-queue
+      - WORKER_LAMBDA_NAME=worker
+      # Add other necessary environment variables
+    ports:
+      - "8000:8000"
+    depends_on:
+      - worker
+      - sqs
+    networks:
+      - rag_network
+
+  worker:
+    build:
+      context: ./
+      dockerfile: rag_service/Dockerfile.worker
+    image: worker_service:dev
+    environment:
+      - DEVELOPMENT_MODE=True
+      - AWS_REGION=us-east-1
+      - CMD_HANDLER=worker
+      - SQS_QUEUE_URL=http://sqs.local:4566/000000000000/your-queue
+      # Add other necessary environment variables
+    ports:
+      - "8001:8001"
+    networks:
+      - rag_network
+
+  # Optional: Mock SQS service using LocalStack for development
+  sqs:
+    image: localstack/localstack
+    container_name: localstack
+    ports:
+      - "4566:4566"  # LocalStack gateway
+    environment:
+      - SERVICES=sqs
+      - DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+    # volumes:
+    #  - "./localstack:/tmp/localstack"
+    networks:
+      - rag_network
+
+networks:
+  rag_network:
+    driver: bridge

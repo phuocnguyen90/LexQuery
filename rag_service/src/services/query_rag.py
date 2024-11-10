@@ -222,7 +222,7 @@ async def main():
     query_item = QueryModel(query_text=query_text)
 
     # Since query_rag is an async function, we need to await its result.
-    response = await query_rag(query_item=query_item, llm_provider_name='openai')
+    response = await query_rag(query_item=query_item, llm_provider_name='groq')
     print(f"Received: {response}")
 
 if __name__ == "__main__":

@@ -1,30 +1,34 @@
 # legal_qa_rag/rag_service/Dockerfile.worker
 # How to build: from root run
 # docker build -t worker_service:v1.0.0 -f rag_service/Dockerfile.worker .  
-### Stage 1: Builder ###
-# rag_service/Dockerfile.api
-# How to build: from root run
-# docker build -t api_service:v1.0.0 -f rag_service/Dockerfile.api .  
 
 # Use the AWS Lambda Python 3.12 base image
 FROM public.ecr.aws/lambda/python:3.12
 
-# Copy the requirements file into the image
-COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}
+# Install Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target /var/lang/lib/python3.12/site-packages
 
-RUN pip install --no-cache-dir -r worker_requirements.txt --target /var/lang/lib/python3.12/site-packages
-
-# Copy shared libraries
+# Install shared libraries into LAMBDA_TASK_ROOT
 COPY shared_libs/ ${LAMBDA_TASK_ROOT}
 RUN pip install -e shared_libs
 
-# Copy the source code for the API handler into /var/task
-COPY rag_service/src/ ${LAMBDA_TASK_ROOT}
+# Copy the source code for the Worker handler into LAMBDA_TASK_ROOT
+COPY rag_service/src/ ${LAMBDA_TASK_ROOT}/
 COPY rag_service/src/handlers/work_handler.py ${LAMBDA_TASK_ROOT}
 
 # Set the working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 
+# Copy the entrypoint script
+COPY rag_service/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Define the CMD to point to the handler
-CMD ["main.handler"]
+# Set environment variable to specify handler type
+ENV CMD_HANDLER=worker
+
+# Define the entrypoint
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+
+# Define the CMD to point to the Lambda handler (used in production)
+CMD ["work_handler.handler"]
