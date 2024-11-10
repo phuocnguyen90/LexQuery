@@ -16,7 +16,7 @@ from models.query_model import QueryModel
 from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.llm_providers import ProviderFactory
-
+from services.query_rag import query_rag
 
 # Initialize the logger
 logger = Logger().get_logger(module_name=__name__)
@@ -45,13 +45,53 @@ sqs_client = boto3.client(
 )
 
 async def handler(event, context):
-    if 'Records' in event:
-        # Process messages from SQS
-        await process_sqs_records(event['Records'])
-    else:
+    """
+    Lambda handler function to process the query and return the result.
+    """
+    try:
+        if 'Records' in event:
+            # If invoked via SQS, process messages from SQS (not expected in this design)
+            logger.error("Received event with 'Records', but expected direct invocation.")
+            return {"error": "Unexpected event format."}
+
         # Direct invocation
-        result = await process_direct_invocation(event)
-        return result  # Return the result to the caller
+        payload = event
+        query_id = payload.get('query_id')
+        if not query_id:
+            logger.error("No query_id found in payload.")
+            return {"error": "No query_id found in payload."}
+
+        conversation_history = payload.get('conversation_history', [])
+        llm_provider_name = payload.get('llm_provider')
+
+        query_item = QueryModel(
+            query_id=query_id,
+            query_text=payload.get('query_text'),
+            conversation_history=conversation_history
+        )
+
+        # Process the query
+        response = await query_rag(query_item, llm_provider_name=llm_provider_name)
+
+        # Prepare the result
+        result = {
+            "query_id": query_id,
+            "response_text": response.response_text,
+            "sources": response.sources,
+            "timestamp": response.timestamp
+        }
+
+        logger.info(f"Successfully processed query_id: {query_id}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error processing query: {str(e)}")
+        return {"error": str(e)}
+
+# For AWS Lambda, the handler should be the entry point
+def lambda_handler(event, context):
+    return asyncio.run(handler(event, context))
+
 
 async def process_direct_invocation(payload):
     try:

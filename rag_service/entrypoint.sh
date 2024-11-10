@@ -12,7 +12,7 @@ if [ "$DEVELOPMENT_MODE" = "True" ]; then
             which python3
             echo "Starting API with Uvicorn..."
             # Explicitly set the path to the uvicorn executable
-            uvicorn handlers.api_handler:app --host 0.0.0.0 --port 8000 --reload
+            uvicorn api_handler:app --host 0.0.0.0 --port 8000 --reload
             ;;
         worker)
             echo "Starting Worker..."

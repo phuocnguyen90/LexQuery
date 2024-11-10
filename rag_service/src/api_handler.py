@@ -22,7 +22,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import internal model
 from models.query_model import QueryModel
 from services.query_rag import query_rag  
-
 config = AppConfigLoader()
 # Initialize logger
 logger = Logger.get_logger(module_name=__name__)
@@ -245,7 +244,7 @@ if __name__ == "__main__":
         import uvicorn
         port = 8000
         logger.info(f"Running the FastAPI server on port {port} in Development Mode.")
-        uvicorn.run("handlers.api_handler:app", host="0.0.0.0", port=port)
+        uvicorn.run("api_handler:app", host="0.0.0.0", port=port)
     else:
         # Lambda handler is already defined above
         pass

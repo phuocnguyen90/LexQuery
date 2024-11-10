@@ -20,8 +20,7 @@ from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
 
 # Imports from services
-from services.search_qdrant import search_qdrant
-from services.get_embedding_function import get_embedding_function
+
 
 
 # Load configuration
@@ -106,6 +105,9 @@ async def query_rag(
     :param llm_provider_name: (Optional) Name of the LLM provider to use if provider is not initialized.
     :return: QueryResponse containing the answer and sources.
     """
+    from services.search_qdrant import search_qdrant
+    from services.get_embedding_function import get_embedding_function
+
     query_text = query_item.query_text
 
     # Initialize provider if not provided

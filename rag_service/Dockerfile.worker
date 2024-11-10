@@ -18,7 +18,6 @@ RUN pip install -e shared_libs
 
 # Copy the source code for the Worker handler into LAMBDA_TASK_ROOT
 COPY rag_service/src/ ${LAMBDA_TASK_ROOT}/
-COPY rag_service/src/handlers/work_handler.py ${LAMBDA_TASK_ROOT}
 
 # Set the working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
