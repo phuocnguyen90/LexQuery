@@ -8,11 +8,11 @@ services:
     image: api_service:dev
     env_file: shared_libs/shared_libs/config/.env
     environment:
-      - DEVELOPMENT_MODE=True
+      - DEVELOPMENT_MODE=False
       - CMD_HANDLER=api
       - AWS_REGION=us-east-1
-      - SQS_QUEUE_URL=http://sqs.local:4566/000000000000/your-queue
-      - WORKER_LAMBDA_NAME=worker
+      - SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/396608786775/legal-rag-qa
+      - WORKER_LAMBDA_NAME=RagWorker
       # Add other necessary environment variables
     volumes:
       - C:/Users/PC/.aws:/var/task/.aws
@@ -29,11 +29,12 @@ services:
       context: ./
       dockerfile: rag_service/Dockerfile.worker
     image: worker_service:dev
+    env_file: shared_libs/shared_libs/config/.env
     environment:
-      - DEVELOPMENT_MODE=True
+      - DEVELOPMENT_MODE=False
       - AWS_REGION=us-east-1
       - CMD_HANDLER=worker
-      - SQS_QUEUE_URL=http://sqs.local:4566/000000000000/your-queue
+      - SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/396608786775/legal-rag-qa
       # Add other necessary environment variables
     volumes:
       - C:/Users/PC/.aws:/root/.aws:ro
@@ -50,10 +51,8 @@ services:
       - "4566:4566"  # LocalStack gateway
     environment:
       - SERVICES=sqs
-      - DEFAULT_REGION=us-east-1
-      - DATA_DIR=/tmp/localstack/data
-    # volumes:
-    #  - "./localstack:/tmp/localstack"
+    volumes:
+     - ./localstack-setup.sh:/etc/localstack/init/ready.d/script.sh
     networks:
       - rag_network
 

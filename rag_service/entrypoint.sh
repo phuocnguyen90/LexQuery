@@ -8,11 +8,9 @@ if [ "$DEVELOPMENT_MODE" = "True" ]; then
 
     # Determine which handler to run based on the CMD_HANDLER environment variable
     case "$CMD_HANDLER" in
-        api)            
+        api)
             echo "Starting API with Uvicorn..."
-            pip install groq
-            pip install qdrant-client
-            # Explicitly set the path to the uvicorn executable
+            # Start the FastAPI server with Uvicorn
             uvicorn api_handler:app --host 0.0.0.0 --port 8000 --reload
             ;;
         worker)

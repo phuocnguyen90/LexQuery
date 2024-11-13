@@ -2,3 +2,5 @@ fastapi
 jsonschema
 mangum
 uvicorn
+groq
+qdrant_client

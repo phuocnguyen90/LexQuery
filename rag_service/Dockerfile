@@ -5,11 +5,9 @@
 
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install Supervisor
-RUN yum install -y supervisor
-
-# Set environment variable for build
-ENV PYTHONUSERBASE=/tmp/python
+# Install common dependencies
+COPY rag_service/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt --target /tmp/python/lib/python3.12/site-packages
 
 # Install API dependencies
 COPY rag_service/api_requirements.txt /tmp/api_requirements.txt
@@ -20,21 +18,14 @@ COPY rag_service/worker_requirements.txt /tmp/worker_requirements.txt
 RUN pip install --no-cache-dir -r /tmp/worker_requirements.txt --target /tmp/python/lib/python3.12/site-packages
 
 # Install shared libraries
-COPY shared_libs/ /tmp/shared_libs/
-RUN pip install -e /tmp/shared_libs --target /tmp/python/lib/python3.12/site-packages
+COPY shared_libs/ ${LAMBDA_TASK_ROOT}
+RUN pip install -e shared_libs
 
-# Copy dependencies to Lambda directories
-COPY /tmp/python/lib/python3.12/site-packages /var/lang/lib/python3.12/site-packages
+COPY rag_service/src/ ${LAMBDA_TASK_ROOT}/
+COPY rag_service/src/bin/uvicorn /var/lang/bin
 
-# Copy shared libraries
-COPY shared_libs/ /var/task/shared_libs/
-
-# Copy source code
-COPY rag_service/src/ /var/task/
-
-# Set working directory
-WORKDIR /var/task
-
+# Set the working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Define the CMD to point to the handler
 CMD ["main.handler"]

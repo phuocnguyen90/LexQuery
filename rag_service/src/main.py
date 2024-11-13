@@ -3,8 +3,9 @@
 import os
 import json
 import uuid
-import asyncio
+
 from typing import List, Dict, Optional
+from hashlib import md5
 
 import boto3
 from fastapi import FastAPI, HTTPException
@@ -104,7 +105,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         logger.info(f"Received submit query request: '{query_text}', assigned query_id: {query_id}")
 
         # Step 1: Check Cache for Existing Response
-        existing_query = await QueryModel.get_item(query_id)
+        existing_query = await QueryModel.get_item_by_cache_key(md5(query_id.encode('utf-8')).hexdigest())
         if existing_query and existing_query.is_complete:
             logger.info(f"Cache hit for query_id: {query_id}")
             return SubmitQueryResponse(

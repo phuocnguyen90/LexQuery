@@ -35,18 +35,21 @@ DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
+if DEVELOPMENT_MODE:
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+else:
+    endpoint_url = None
+
 # Initialize boto3 clients
 lambda_client = boto3.client(
     'lambda',
     region_name=AWS_REGION,
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    endpoint_url=endpoint_url
 )
 sqs_client = boto3.client(
     'sqs',
     region_name=AWS_REGION,
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    endpoint_url=endpoint_url
 )
 
 # Initialize FastAPI application
@@ -208,12 +211,13 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
     try:
         query_text = request.query_text
         llm_provider_name = request.llm_provider
+        cache_key = md5(query_text.encode('utf-8')).hexdigest()
         query_id = str(uuid.uuid4())  # Generate unique query_id
         conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
         # Step 1: Check Cache for Existing Response
-        existing_query = await QueryModel.get_item_by_cache_key(md5(query_id.encode('utf-8')).hexdigest())
+        existing_query = await QueryModel.get_item_by_cache_key(cache_key)
         if existing_query and existing_query.is_complete:
             logger.info(f"Cache hit for query_id: {query_id}")
             return {
@@ -250,5 +254,3 @@ if __name__ == "__main__":
         # Lambda handler is already defined above
         pass
 
-# Optional: Remove or comment out the local testing endpoint as it's no longer needed
-# since the `/submit_query` endpoint handles both production and development modes.

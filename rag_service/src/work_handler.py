@@ -33,15 +33,22 @@ POLL_INTERVAL = 10  # seconds
 MAX_MESSAGES = 10 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
+DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
+DOCKER_MODE = os.getenv("DOCKER_MODE", "False").lower() in ["true", "1", "yes"] # Added DOCKER_MODE for local Docker testing
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+if DOCKER_MODE:
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+else:
+    endpoint_url = None  # Use default AWS endpoints
+
 
 # Initialize boto3 clients with explicit credentials
 sqs_client = boto3.client(
     'sqs',
     region_name=AWS_REGION,
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    endpoint_url=endpoint_url
 )
 
 async def handler(event, context):
@@ -82,7 +89,7 @@ async def handler(event, context):
         }
 
         logger.info(f"Successfully processed query_id: {query_id}")
-        return result
+        return json.loads(json.dumps(result))
 
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
@@ -90,7 +97,8 @@ async def handler(event, context):
 
 # For AWS Lambda, the handler should be the entry point
 def lambda_handler(event, context):
-    return asyncio.run(handler(event, context))
+    response = asyncio.run(handler(event, context))
+    return response
 
 
 async def process_direct_invocation(payload):
@@ -247,7 +255,7 @@ async def poll_queue():
                 sqs_client.receive_message,
                 QueueUrl=SQS_QUEUE_URL,
                 MaxNumberOfMessages=MAX_MESSAGES,
-                WaitTimeSeconds=20  # Enable long polling
+                WaitTimeSeconds=10  # Enable long polling
             )
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
