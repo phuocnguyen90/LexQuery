@@ -1,6 +1,0 @@
-version = 0.1
-[default.build.parameters]
-template_file = "c:\\Users\\PC\\git\\legal_qa_rag\\template.yaml"
-cached = true
-parallel = true
-use_container = true

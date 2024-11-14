@@ -1,5 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "./shared_libs"
-    ]
-}
