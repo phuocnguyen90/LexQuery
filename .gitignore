@@ -164,3 +164,8 @@ cython_debug/
 .github
 /local_data
 /logs
+template.yaml
+samconfig.toml
+.aws-sam
+.vscode
+/localstack
