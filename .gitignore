@@ -162,11 +162,12 @@ cython_debug/
 *.json
 *.pem
 .github
-/local_data
-/logs
+local_data
+logs
 *.zip
 template.yaml
 samconfig.toml
 .aws-sam
 .vscode
-/localstack
+localstack
+localstack-setup.sh
