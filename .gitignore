@@ -164,6 +164,7 @@ cython_debug/
 .github
 /local_data
 /logs
+*.zip
 template.yaml
 samconfig.toml
 .aws-sam

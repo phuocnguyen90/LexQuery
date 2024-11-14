@@ -1,19 +1,27 @@
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 import time
+import sys
+import os
 import asyncio
 from pydantic import BaseModel
 
+import os
+import sys
+
+# Ensure the parent directory is added to `sys.path` for consistent imports
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 # Imports from shared_libs
-from shared_libs.llm_providers import ProviderFactory  
+from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
-from get_embedding_function import get_embedding_function
 
-try:
-    from services.search_qdrant import search_qdrant    # Absolute import for use in production
-except ImportError:
-    from search_qdrant import search_qdrant    # Relative import for direct script testing
+# Imports from services
+
+
 
 # Load configuration
 config_loader = AppConfigLoader()
@@ -97,6 +105,9 @@ async def query_rag(
     :param llm_provider_name: (Optional) Name of the LLM provider to use if provider is not initialized.
     :return: QueryResponse containing the answer and sources.
     """
+    from services.search_qdrant import search_qdrant
+    from services.get_embedding_function import get_embedding_function
+
     query_text = query_item.query_text
 
     # Initialize provider if not provided
@@ -216,7 +227,7 @@ async def main():
     query_item = QueryModel(query_text=query_text)
 
     # Since query_rag is an async function, we need to await its result.
-    response = await query_rag(query_item=query_item, llm_provider_name='openai')
+    response = await query_rag(query_item=query_item, llm_provider_name='groq')
     print(f"Received: {response}")
 
 if __name__ == "__main__":

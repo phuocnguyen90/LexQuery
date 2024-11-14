@@ -1,51 +1,39 @@
-# rag_service\Dockerfile.worker
+# legal_qa_rag/rag_service/Dockerfile.worker
+# How to build: from root run
+# docker build -t worker_service:v1.0.0 -f rag_service/Dockerfile.worker .  
 
-# Use an official Python runtime as the base image
-FROM python:3.10-slim
+# Use the AWS Lambda Python 3.12 base image
+FROM public.ecr.aws/lambda/python:3.12
 
-WORKDIR /app
+# Install basic Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target /var/lang/lib/python3.12/site-packages
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install API service Python dependencies into LAMBDA_TASK_ROOT
+COPY rag_service/worker_requirements.txt ${LAMBDA_TASK_ROOT}/worker_requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/worker_requirements.txt --target /var/lang/lib/python3.12/site-packages
+# Install shared libraries into LAMBDA_TASK_ROOT
+COPY shared_libs/ ${LAMBDA_TASK_ROOT}
+RUN pip install -e shared_libs
 
-# Install Python dependencies
-COPY rag_service/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy the source code for the Worker handler into LAMBDA_TASK_ROOT
+COPY rag_service/src/ ${LAMBDA_TASK_ROOT}/
 
-# Install fastembed separately
-RUN pip install fastembed
+# Set the working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Copy only the download_model.py script
-COPY rag_service/src/utils/download_model.py /app/download_model.py
+# Copy the entrypoint script
+COPY rag_service/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Pre-download the embedding model using the download_model.py script
-RUN python /app/download_model.py
+# Set environment variable to specify handler type
+ENV CMD_HANDLER=worker
 
-# Copy shared_libs and install it
-COPY shared_libs /app/shared_libs
-RUN pip install -e ./shared_libs
+# Define the entrypoint
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
-# Copy the rest of the application code
-COPY rag_service/src /app/src
+# Define the CMD to point to the Lambda handler (used in production)
+CMD ["work_handler.lambda_handler"]
 
-# Copy central config to be accessible in the container
-COPY shared_libs/shared_libs/config /app/config
+# Change to work_handler.handler in testing
 
-# Convert .env to Unix line endings
-RUN sed -i 's/\r$//' /app/config/.env
-
-# Copy entrypoint script
-COPY rag_service/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Set environment variables for configuration paths
-ENV CONFIG_PATH=/app/config/config.yaml
-ENV DOTENV_PATH=/app/config/.env
-
-# Expose the port that FastAPI will run on
-EXPOSE 8000
-
-# Start the worker
-CMD ["python", "handlers.work_handler.py"]
