@@ -4,6 +4,7 @@ import os
 import boto3
 import json
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mangum import Mangum
 import uuid
@@ -54,6 +55,26 @@ sqs_client = boto3.client(
 
 # Initialize FastAPI application
 app = FastAPI()
+
+
+# Allow origins as needed
+allowed_origins = [
+    "https://phuocmaster.blog",  
+    "https://www.yourwebsite.com",
+    "http://localhost",
+    "http://127.0.0.1",
+
+    # Add other domains or subdomains if necessary
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Entry point for AWS Lambda using Mangum
 handler = Mangum(app) if not DEVELOPMENT_MODE else None

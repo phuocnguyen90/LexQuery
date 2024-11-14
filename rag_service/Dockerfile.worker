@@ -33,4 +33,7 @@ ENV CMD_HANDLER=worker
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 # Define the CMD to point to the Lambda handler (used in production)
-CMD ["work_handler.handler"]
+CMD ["work_handler.lambda_handler"]
+
+# Change to work_handler.handler in testing
+
