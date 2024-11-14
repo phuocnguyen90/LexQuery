@@ -1,0 +1,11 @@
+groq
+google-generativeai
+httpx
+jsonschema
+langchain_community
+langchain_text_splitters
+lxml
+openai
+qdrant_client
+Requests
+

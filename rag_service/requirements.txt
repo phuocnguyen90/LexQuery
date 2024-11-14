@@ -1,0 +1,8 @@
+aiofiles
+boto3
+botocore
+numpy
+pandas
+pydantic
+pydantic_settings
+python-dotenv

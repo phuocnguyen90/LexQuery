@@ -1,7 +1,7 @@
 # providers/openai_provider.py
 
 import logging
-import openai  # Make sure the OpenAI library is installed
+import openai  
 from .llm_provider import LLMProvider
 from typing import Optional, List, Dict, Any
 

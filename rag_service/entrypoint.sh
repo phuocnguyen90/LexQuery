@@ -1,36 +1,35 @@
-# rag_service/entrypoint.sh
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Entrypoint script to switch between Production and Development modes
 
-# Function to load environment variables from .env
-load_env() {
-    if [ -f /app/config/.env ]; then
-        echo "Loading environment variables from /app/config/.env"
-        # Export all variables from .env, handling spaces and special characters
-        set -a
-        source /app/config/.env
-        set +a
-    else
-        echo "WARNING: /app/config/.env file not found. Proceeding without it."
-    fi
-}
+# Check the DEVELOPMENT_MODE environment variable
+if [ "$DEVELOPMENT_MODE" = "True" ]; then
+    echo "Running in Development Mode..."
 
-# Load environment variables
-load_env
-
-# Verify AWS_REGION is correctly loaded
-if [ -z "$AWS_REGION" ]; then
-    echo "ERROR: AWS_REGION is not set"
-    exit 1
+    # Determine which handler to run based on the CMD_HANDLER environment variable
+    case "$CMD_HANDLER" in
+        api)
+            echo "Starting API with Uvicorn..."
+            # Start the FastAPI server with Uvicorn
+            uvicorn api_handler:app --host 0.0.0.0 --port 8000 --reload
+            ;;
+        worker)
+            echo "Starting Worker..."
+            # Start the Worker process
+            python work_handler.py
+            ;;
+        combined)
+            echo "Starting both API and Worker with Supervisor..."
+            # Start Supervisor to manage both processes
+            supervisord -c /etc/supervisord.conf
+            ;;
+        *)
+            echo "CMD_HANDLER not set or unrecognized. Please set CMD_HANDLER to 'api', 'worker', or 'combined'."
+            exit 1
+            ;;
+    esac
+else
+    echo "Running in Production Mode..."
+    # Delegate to the AWS Lambda entrypoint
+    exec /lambda-entrypoint.sh "$@"
 fi
-
-# Trim whitespace and newline characters from AWS_REGION
-AWS_REGION=$(echo "$AWS_REGION" | tr -d '[:space:]')
-export AWS_REGION
-echo "Trimmed AWS_REGION='${AWS_REGION}'"
-
-# Run the API server
-echo "Starting the API server..."
-exec uvicorn src.handlers.api_handler:app --host 0.0.0.0 --port 8000

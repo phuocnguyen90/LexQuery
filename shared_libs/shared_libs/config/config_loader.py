@@ -162,8 +162,6 @@ class LLMProviderConfigLoader:
 class BaseEmbeddingConfig(BaseSettings):
     provider: str = Field(..., description="Name of the embedding provider.")
 
-    class Config:
-        underscore_attrs_are_private = True
 
 class BedrockEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['bedrock'] = 'bedrock'
@@ -215,8 +213,6 @@ class EmbeddingConfig(BaseSettings):
         description="Library-based embedding providers."
     )
 
-    class Config:
-        underscore_attrs_are_private = True
 
     @classmethod
     def from_config_loader(cls, config_loader: AppConfigLoader):

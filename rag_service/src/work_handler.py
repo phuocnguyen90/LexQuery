@@ -1,18 +1,21 @@
 # rag_service\src\handlers\work_handler.py
-import os
-from shared_libs.config.config_loader import AppConfigLoader, LLMProviderConfigLoader
-from shared_libs.utils.logger import Logger
-from shared_libs.llm_providers import ProviderFactory
-import sys
+
 import json
 import asyncio
 import boto3
-from botocore.exceptions import ClientError
+
 from functools import partial
 from hashlib import md5
-# Add parent directory to the sys.path to access shared modules
+
+import os
+import sys
+# Add the `/var/task` directory and its subdirectories to `sys.path`
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from models.query_model import QueryModel
+from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.utils.logger import Logger
+from shared_libs.llm_providers import ProviderFactory
 from services.query_rag import query_rag
 
 # Initialize the logger
@@ -30,80 +33,144 @@ POLL_INTERVAL = 10  # seconds
 MAX_MESSAGES = 10 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
+DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
+DOCKER_MODE = os.getenv("DOCKER_MODE", "False").lower() in ["true", "1", "yes"] # Added DOCKER_MODE for local Docker testing
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
-# Initialize boto3 clients
-sqs_client = boto3.client('sqs', region_name=AWS_REGION)
+if DOCKER_MODE:
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+else:
+    endpoint_url = None  # Use default AWS endpoints
+
+
+# Initialize boto3 clients with explicit credentials
+sqs_client = boto3.client(
+    'sqs',
+    region_name=AWS_REGION,
+    endpoint_url=endpoint_url
+)
 
 async def handler(event, context):
-    for record in event['Records']:
-        try:
-            payload = json.loads(record['body'])
-            query_id = payload.get('query_id')
-            if not query_id:
-                logger.error("No query_id found in payload.")
-                continue  # Skip processing if no query_id
+    """
+    Lambda handler function to process the query and return the result.
+    """
+    try:
+        if 'Records' in event:
+            # If invoked via SQS, process messages from SQS (not expected in this design)
+            logger.error("Received event with 'Records', but expected direct invocation.")
+            return {"error": "Unexpected event format."}
 
-            conversation_history = payload.get('conversation_history', [])
-            llm_provider_name = payload.get('llm_provider')
-            if llm_provider_name:
-                provider_config = config.get('llm', {}).get(llm_provider_name, {})
-                if provider_config:
-                    provider = ProviderFactory.get_provider(llm_provider_name, provider_config)
-                    logger.info(f"Using specified LLM provider: {llm_provider_name}")
-                else:
-                    logger.error(f"Specified LLM provider '{llm_provider_name}' not found in configuration. Using default provider.")
-                    provider = llm_provider  # Use default provider
-            else:
-                provider = llm_provider
+        # Direct invocation
+        payload = event
+        query_id = payload.get('query_id')
+        if not query_id:
+            logger.error("No query_id found in payload.")
+            return {"error": "No query_id found in payload."}
 
-            query_item = await QueryModel.get_item(query_id)
-            if not query_item:
-                logger.error(f"No query found in database for query_id: {query_id}")
-                continue
+        conversation_history = payload.get('conversation_history', [])
+        llm_provider_name = payload.get('llm_provider')
 
-            # Invoke RAG processing with cache handling
-            response = await query_rag(query_item, provider=provider, conversation_history=conversation_history)
+        query_item = QueryModel(
+            query_id=query_id,
+            query_text=payload.get('query_text'),
+            conversation_history=conversation_history
+        )
 
-            # Update the query item with the response
-            query_item.answer_text = response.response_text
-            query_item.sources = response.sources
-            query_item.is_complete = True
-            query_item.timestamp = response.timestamp 
+        # Process the query
+        response = await query_rag(query_item, llm_provider_name=llm_provider_name)
 
-            # Save the updated query_item to DynamoDB or cache
-            await query_item.update_item(query_id,query_item)
-            
-            logger.info(f"Successfully processed query_id: {query_id}")
+        # Prepare the result
+        result = {
+            "query_id": query_id,
+            "response_text": response.response_text,
+            "sources": response.sources,
+            "timestamp": response.timestamp
+        }
 
-            # Delete the message from the queue after successful processing
-            await delete_message(record['ReceiptHandle'])
-            logger.info(f"Deleted message from SQS for query_id: {query_id}")
+        logger.info(f"Successfully processed query_id: {query_id}")
+        return json.loads(json.dumps(result))
 
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            # Optionally, handle retries or dead-letter queue
+    except Exception as e:
+        logger.error(f"Error processing query: {str(e)}")
+        return {"error": str(e)}
+
+# For AWS Lambda, the handler should be the entry point
+def lambda_handler(event, context):
+    response = asyncio.run(handler(event, context))
+    return response
 
 
-async def process_message(message):
+async def process_direct_invocation(payload):
+    try:
+        from services.query_rag import query_rag
+        query_id = payload.get('query_id')
+        if not query_id:
+            logger.error("No query_id found in payload.")
+            return {"error": "No query_id found in payload."}
+        
+        conversation_history = payload.get('conversation_history', [])
+        llm_provider_name = payload.get('llm_provider')
+        provider = get_llm_provider(llm_provider_name)
+        
+        query_item = QueryModel(
+            query_id=query_id,
+            query_text=payload.get('query_text'),
+            conversation_history=conversation_history
+        )
+        
+        # Process the query
+        response = await query_rag(query_item, provider=provider, conversation_history=conversation_history)
+        
+        # Update the query item with the response
+        query_item.answer_text = response.response_text
+        query_item.sources = response.sources
+        query_item.is_complete = True
+        query_item.timestamp = response.timestamp 
+        
+        # Save the updated query_item
+        await query_item.update_item(query_id, query_item)
+        
+        logger.info(f"Successfully processed query_id: {query_id}")
+        
+        # Return the result
+        return {
+            "query_id": query_id,
+            "response_text": query_item.answer_text,
+            "sources": query_item.sources,
+            "timestamp": query_item.timestamp
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing query: {str(e)}")
+        return {"error": str(e)}
+
+def get_llm_provider(llm_provider_name):
+    if llm_provider_name:
+        provider_config = config.get('llm', {}).get(llm_provider_name, {})
+        if provider_config:
+            provider = ProviderFactory.get_provider(llm_provider_name, provider_config)
+            logger.info(f"Using specified LLM provider: {llm_provider_name}")
+        else:
+            logger.error(f"Specified LLM provider '{llm_provider_name}' not found in configuration. Using default provider.")
+            provider = llm_provider  # Use default provider
+    else:
+        provider = llm_provider
+    return provider
+
+async def process_sqs_records(message):
     """
     Process a single SQS message.
     """
     try:
+        from services.query_rag import query_rag
         # Deserialize message
         body = json.loads(message['Body'])
         llm_provider_name = body.get('llm_provider')
         
-        if llm_provider_name:            
-            # Get provider configuration from config
-            provider_config = config.get('llm', {}).get(llm_provider_name, {})
-            if provider_config:
-                provider = ProviderFactory.get_provider(llm_provider_name, provider_config)
-                logger.info(f"Using specified LLM provider: {llm_provider_name}")
-            else:
-                logger.error(f"Specified LLM provider '{llm_provider_name}' not found in configuration. Using default provider.")
-                provider = llm_provider  # Use default provider
-        else:
-            provider = llm_provider  # Use default provider
+        provider = get_llm_provider(llm_provider_name)
+        
+        
         query_id = body.get('query_id')
         if not query_id:
             logger.error("No query_id found in message body.")
@@ -188,7 +255,7 @@ async def poll_queue():
                 sqs_client.receive_message,
                 QueueUrl=SQS_QUEUE_URL,
                 MaxNumberOfMessages=MAX_MESSAGES,
-                WaitTimeSeconds=20  # Enable long polling
+                WaitTimeSeconds=10  # Enable long polling
             )
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -202,7 +269,7 @@ async def poll_queue():
                 logger.info(f"Received {len(messages)} messages.")
 
                 # Process each message concurrently
-                tasks = [process_message(message) for message in messages]
+                tasks = [process_sqs_records(message) for message in messages]
                 await asyncio.gather(*tasks)
 
         except Exception as e:

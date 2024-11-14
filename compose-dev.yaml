@@ -1,9 +1,0 @@
-version: '3.10'
-
-services:
-  app:
-    image: legalqarag
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./shared_libs/config/.env 
