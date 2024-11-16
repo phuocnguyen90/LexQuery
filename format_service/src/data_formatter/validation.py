@@ -5,7 +5,7 @@ import yaml
 import logging
 import re
 from langdetect import detect
-from providers.groq_provider import GroqProvider
+from shared_libs.llm_providers.groq_provider import GroqProvider
 from jsonschema import validate, ValidationError
 from typing import Dict, Any, Optional
 # Configure logging

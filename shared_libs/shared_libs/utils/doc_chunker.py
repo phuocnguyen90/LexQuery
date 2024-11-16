@@ -3,12 +3,12 @@ import re
 import json
 
 
-from logger import Logger
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.utils.logger import Logger
+from shared_libs.config.config_loader import AppConfigLoader
 
 # Configure logger
 try:
-    config = ConfigLoader()
+    config = AppConfigLoader()
 except Exception as e:
     print(f"Failed to load configuration: {e}")
     
@@ -23,35 +23,37 @@ logger = Logger.get_logger(module_name=__name__)
 
 
 # Define all possible hierarchical markers with their regex patterns
+# Updated HIERARCHY_MARKERS
 HIERARCHY_MARKERS = {
     'chương': re.compile(
-        r'^\s*(?P<chương_marker>chương)\s+(?P<chương_number>[IVXLC]+|\d+)\s*[-.]?\s*(?P<chương_title>.+)?$',
+        r'^\s*(?P<chương_marker>chương\s+[IVXLC]+)\s*[-.]?\s*(?P<chương_title>.+)?$',
         re.IGNORECASE | re.MULTILINE
     ),
     'mục': re.compile(
-        r'^\s*(?P<mục_marker>mục)\s+(?P<mục_number>\d+)\s*[-.]?\s*(?P<mục_title>.+)?$',
+        r'^\s*(?P<mục_marker>mục\s+[IVXLC]+|\d+)\s*[-.]?\s*(?P<mục_title>.+)?$',
         re.IGNORECASE | re.MULTILINE
     ),
     'điều': re.compile(
-        r'^\s*(?P<điều_marker>điều)\s+(?P<điều_number>\d+)\s*[-.]?\s*(?P<điều_title>.+)?$',
+        r'^\s*(?P<điều_marker>điều\s+\d+)\s*[-.]?\s*(?P<điều_title>.+)?$',
         re.IGNORECASE | re.MULTILINE
     ),
-    'level2_rom': re.compile(
-        r'^\s*(?P<level2_rom_marker>I{1,3}|IV|V|VI|VII|VIII|IX|X)\s*[-.]?\s*(?P<level2_rom_title>.+)?$',
-        re.IGNORECASE | re.MULTILINE
+    'roman_numeral': re.compile(
+        r'^\s*(?P<roman_numeral_marker>[IVXLC]+)\.\s*(?P<roman_numeral_title>.+)$',
+        re.MULTILINE
     ),
-    'level3_num': re.compile(
-        r'^\s*(?P<level3_num_marker>\d+)\s*[-.]?\s*(?P<level3_num_title>.+)?$',
-        re.IGNORECASE | re.MULTILINE
+    'number_dot': re.compile(
+        r'^\s*(?P<number_dot_marker>\d+)\.\s*(?P<number_dot_title>.+)$',
+        re.MULTILINE
     ),
     'level4_alpha': re.compile(
-        r'^\s*(?P<level4_alpha_marker>[a-zA-Z]{1,2})\s*[.)-]\s*(?P<level4_alpha_title>.+)?$',
-        re.IGNORECASE | re.MULTILINE
+        r'^\s*(?P<level4_alpha_marker>[a-zA-Z]{1,2})\)\s*(?P<level4_alpha_title>.+)$',
+        re.MULTILINE
     ),
 }
 
 # Define the default hierarchy order
-DEFAULT_HIERARCHY_ORDER = ['chương', 'mục', 'điều', 'level2_rom', 'level3_num', 'level4_alpha']
+DEFAULT_HIERARCHY_ORDER = ['chương', 'roman_numeral', 'mục', 'điều', 'number_dot', 'level4_alpha']
+
 
 # ----------------------------
 # Helper Functions
@@ -78,11 +80,13 @@ def extract_text_from_txt(file_path):
 
 def extract_text_from_docx(file_path):
     """
-    Extracts text from a .docx file.
-    
+    Extracts text from a .docx file, including text inside tables,
+    preserving the order of paragraphs and tables as in the original document,
+    and ensuring each table cell is on its own line.
+
     Args:
         file_path (str): Path to the .docx file.
-        
+
     Returns:
         str: Extracted text.
     """
@@ -90,14 +94,63 @@ def extract_text_from_docx(file_path):
     try:
         doc = docx.Document(file_path)
         full_text = []
-        for para in doc.paragraphs:
-            full_text.append(para.text)
+
+        for block in iter_block_items(doc):
+            if isinstance(block, docx.text.paragraph.Paragraph):
+                if block.text.strip():
+                    full_text.append(block.text.strip())
+            elif isinstance(block, docx.table.Table):
+                # Extract text from table
+                full_text.append("<table>")
+                for row in block.rows:
+                    full_text.append("<tr>")
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            # Add each cell content as a separate line
+                            full_text.append(f"<td>{cell_text}</td>")
+                    full_text.append("</tr>")
+                full_text.append("</table>")
+
         text = '\n'.join(full_text)
         logger.info(f"Extracted text from DOCX file: {file_path}")
         return text
     except Exception as e:
         logger.error(f"Error reading DOCX file {file_path}: {e}")
         return ""
+
+
+def iter_block_items(parent):
+    """
+    Generate a reference to each paragraph and table child within parent, in document order.
+
+    Args:
+        parent: The parent document or element.
+
+    Yields:
+        Each child paragraph and table in document order.
+    """
+    import docx
+    from docx.oxml.ns import qn
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.table import CT_Tbl
+    from docx.table import _Cell, Table
+    from docx.text.paragraph import Paragraph
+
+    if isinstance(parent, docx.document.Document):
+        parent_element = parent.element.body
+    elif isinstance(parent, _Cell):
+        parent_element = parent._tc
+    else:
+        raise ValueError("Invalid parent type")
+
+    for child in parent_element.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
 
 def extract_text_from_pdf(file_path):
     """
@@ -229,16 +282,6 @@ def assign_hierarchy_levels(detected_markers):
     return hierarchy_mapping
 
 def parse_hierarchy(content, hierarchy_mapping):
-    """
-    Parses the content into a hierarchical structure based on defined regex patterns and hierarchy mapping.
-    
-    Args:
-        content (str): The raw text content of the document.
-        hierarchy_mapping (dict): Mapping of hierarchical markers to their levels.
-        
-    Returns:
-        list: Hierarchically structured sections and subsections.
-    """
     sections = []
     stack = []  # Stack to keep track of hierarchy levels
     last_pos = 0
@@ -246,9 +289,8 @@ def parse_hierarchy(content, hierarchy_mapping):
     # Create a combined regex pattern based on detected hierarchy markers
     combined_pattern_parts = []
     for marker in hierarchy_mapping:
-        # Append the pattern as a named group
-        combined_pattern_parts.append(f'(?P<{marker}>{HIERARCHY_MARKERS[marker].pattern})')
-    # Combine all parts using OR
+        pattern = HIERARCHY_MARKERS[marker]
+        combined_pattern_parts.append(f'(?P<{marker}>{pattern.pattern})')
     combined_pattern = re.compile('|'.join(combined_pattern_parts), re.IGNORECASE | re.MULTILINE)
 
     for match in combined_pattern.finditer(content):
@@ -256,6 +298,7 @@ def parse_hierarchy(content, hierarchy_mapping):
         matched_text = match.group().strip()
         level = None
         title = ""
+        header = ""
 
         # Determine which group matched
         for marker in hierarchy_mapping:
@@ -263,50 +306,35 @@ def parse_hierarchy(content, hierarchy_mapping):
                 level = hierarchy_mapping[marker]
                 match_details = HIERARCHY_MARKERS[marker].match(matched_text)
                 if match_details:
-                    # Extract the title based on the specific marker's title group
+                    # Extract the title and header based on the specific marker's title group
                     title_group_name = f"{marker}_title"
+                    marker_group_name = f"{marker}_marker"
                     if title_group_name in match_details.groupdict():
-                        title = match_details.group(title_group_name).strip() if match_details.group(title_group_name) else ""
-                    # Update the title based on level-specific rules
-                    if marker == 'level3_num':
-                        title = f"Khoản {match_details.group('level3_num_marker') or matched_text}"
-                    elif marker == 'level4_alpha':
-                        title = f"Điểm {match_details.group('level4_alpha_marker') or matched_text}"
+                        title = match_details.group(title_group_name).strip()
+                    if marker_group_name in match_details.groupdict():
+                        header = match_details.group(marker_group_name).strip()
+                    else:
+                        header = matched_text
                 break
 
         if level is None:
             continue  # Skip if no level matched
 
-        logger.debug(f"Matched {marker.upper()} with level {level}: {matched_text} and title: {title}")
-
         # Extract the text between the last match and current match
         text = content[last_pos:start].strip()
         if text:
-            # Otherwise, treat it as content
+            # Assign text to the content of the last section
             if stack:
                 current = stack[-1]
-                if current['content']:
-                    current['content'] += ' ' + text
-                else:
-                    current['content'] = text
+                current['content'] += '\n' + text if current['content'] else text
 
         # Create a new section based on the detected level
         new_section = {
-            'header': title,  # Swapping header and title as per user request
-            'title': matched_text,
+            'header': header,
+            'title': title,
             'content': '',
             'subsections': []
         }
-
-        # Assign any remaining content to the previous section
-        if stack:
-            current = stack[-1]
-            remaining_text = content[last_pos:start].strip()
-            if remaining_text:
-                if current['content']:
-                    current['content'] += ' ' + remaining_text
-                else:
-                    current['content'] = remaining_text
 
         # Adjust the stack based on the hierarchy level
         while stack and stack[-1]['level'] >= level:
@@ -316,8 +344,7 @@ def parse_hierarchy(content, hierarchy_mapping):
             parent['subsections'].append(new_section)
         else:
             sections.append(new_section)
-        stack.append(new_section)
-        new_section['level'] = level  # Assign level for future reference
+        stack.append({'level': level, **new_section})
 
         # Update the last position
         last_pos = end
@@ -325,35 +352,9 @@ def parse_hierarchy(content, hierarchy_mapping):
     # Assign any remaining text after the last match
     if last_pos < len(content):
         remaining_text = content[last_pos:].strip()
-        if remaining_text:
-            if stack:
-                current = stack[-1]
-                if current['content']:
-                    current['content'] += ' ' + remaining_text
-                else:
-                    current['content'] = remaining_text
-
-    # Move title to content if no subsections exist
-    for section in sections:
-        def move_title_to_content(sec, parent_title=None, parent_header=None):
-            if not sec['subsections'] and sec['title']:
-                if not sec['content']:
-                    sec['content'] = sec['title']
-                    sec['title'] = ""
-            for subsection in sec['subsections']:
-                move_title_to_content(subsection, parent_title=sec['title'], parent_header=sec['header'])
-
-        move_title_to_content(section)
-
-    # Post-processing: Update titles if they are empty by trying to use titles from higher levels
-    for section in sections:
-        def update_empty_titles(sec, parent_title=None):
-            if not sec['title']:
-                sec['title'] = parent_title if parent_title else ""
-            for subsection in sec['subsections']:
-                update_empty_titles(subsection, sec['title'])
-
-        update_empty_titles(section)
+        if remaining_text and stack:
+            current = stack[-1]
+            current['content'] += '\n' + remaining_text if current['content'] else remaining_text
 
     # Remove 'level' keys from sections
     def remove_level(section):
@@ -364,9 +365,9 @@ def parse_hierarchy(content, hierarchy_mapping):
 
     for section in sections:
         remove_level(section)
-        
 
     return sections
+
 
 def create_structured_json(doc_number, doc_id, articles):
     """
@@ -380,8 +381,8 @@ def create_structured_json(doc_number, doc_id, articles):
     Returns:
         dict: Structured JSON object.
     """
-    return {
-        "Doc_number": doc_number,
+    return {        
+        "doc_number": doc_number,
         "doc_id": doc_id,
         "articles": articles
     }
@@ -403,23 +404,47 @@ def parse_document(content, hierarchy_mapping):
 def process_raw_file(file_path, output_json_path):
     """
     Processes a single raw text file and converts it into a structured JSON file.
-    
+
     Args:
         file_path (str): Path to the raw text file.
         output_json_path (str): Path to save the structured JSON file.
     """
     try:
+        # Extract file name from the file path
+        doc_filename = os.path.basename(file_path)
+
         # Extract text from the file
         raw_text = extract_text(file_path)
         if not raw_text:
             logger.warning(f"No text extracted from file: {file_path}")
             return
 
+        # Split the text into elements
+        elements = raw_text.split("\n")
+        doc_id = ""
+        # Increase the range if necessary to capture the doc_id
+        for element in elements[:30]:  # Adjusted range as needed
+            element = element.strip()
+            # Skip table tags
+            if element in ("<table>", "</table>", "<tr>", "</tr>"):
+                continue
+            # If element is a table cell
+            if element.startswith("<td>") and element.endswith("</td>"):
+                # Extract cell content
+                element_text = element[4:-5].strip()
+            else:
+                element_text = element
+
+            # Updated regex pattern to match "Số:" and "Luật số:"
+            match = re.search(r"(?:Số|Luật số)[:\s]*([^\s,;]+)", element_text)
+            if match:
+                doc_id = match.group(1).strip()
+                break
+
         # Detect hierarchical markers in the document
         detected_markers = detect_hierarchy(raw_text)
         if not detected_markers:
             logger.warning(f"No hierarchical markers detected in file: {file_path}")
-            # Optionally, treat the entire document as a single section
             structured_sections = [{
                 'header': '',
                 'title': '',
@@ -427,58 +452,112 @@ def process_raw_file(file_path, output_json_path):
                 'subsections': []
             }]
         else:
-            # Assign hierarchical levels based on detected markers
             hierarchy_mapping = assign_hierarchy_levels(detected_markers)
-            # Parse the document based on the hierarchy mapping
             structured_sections = parse_document(raw_text, hierarchy_mapping)
 
         # Create structured JSON object
-        doc_number = 1  # Assuming one document per file; adjust as needed
-        document_json = create_structured_json(doc_number, "", structured_sections)
+        doc_number = 1  # Assuming one document per file
+        document_json = create_structured_json(doc_number, doc_id, structured_sections)
         documents = [document_json]
 
         # Write structured JSON to the output file
         with open(output_json_path, 'w', encoding='utf-8') as outfile:
-            json.dump({"documents": documents}, outfile, ensure_ascii=False, indent=4)
+            json.dump({
+                "doc_filename": doc_filename,
+                "documents": documents
+            }, outfile, ensure_ascii=False, indent=4)
 
         logger.info(f"Successfully processed file: {file_path} and saved to {output_json_path}")
 
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {e}")
 
-def process_section(section, indent_level=0):
+def process_section(section, indent_level=0, parent_headers=None):
     """
-    Recursively processes a section or subsection to reconstruct text.
-    
+    Recursively processes a section or subsection to reconstruct text,
+    including full hierarchy headers.
+
     Args:
         section (dict): The current section or subsection.
         indent_level (int): Current indentation level for formatting.
-        
+        parent_headers (list): List of headers from parent sections.
+
     Returns:
         str: The reconstructed text for this section.
     """
-    indent = "    " * indent_level  # 4 spaces per indent level
+    if parent_headers is None:
+        parent_headers = []
+
+    indent = "    " * indent_level
     text = ""
-    
-    title = section.get("title", "")
+
     header = section.get("header", "")
+    title = section.get("title", "")
     content = section.get("content", "")
-    
+
+    # Update the list of parent headers
+    current_headers = parent_headers + [header] if header else parent_headers
+
+    # Construct the full reference
+    full_reference = ', '.join(filter(None, reversed(current_headers)))
+
+    # Add the full reference to the text
+    if full_reference:
+        text += f"{indent}{full_reference}\n"
+
+    # Add the title if it exists
     if title:
         text += f"{indent}{title}\n"
-    
-    if header and header not in title:
-        text += f"{indent}{header}\n"
-    
+
+    # Add the content
     if content:
         text += f"{indent}{content}\n"
-    
+
     # Process subsections recursively
     subsections = section.get("subsections", [])
     for subsection in subsections:
-        text += process_section(subsection, indent_level + 1)
-    
+        text += process_section(subsection, indent_level + 1, current_headers)
+
     return text
+
+
+def reconstruct_table(content, indent_level):
+    """
+    Reconstructs table data from tagged content.
+
+    Args:
+        content (str): The content containing table tags.
+        indent_level (int): Current indentation level for formatting.
+
+    Returns:
+        str: The reconstructed table as text.
+    """
+    indent = "    " * indent_level
+    text = ""
+    lines = content.split('\n')
+    row_cells = []
+    for line in lines:
+        line = line.strip()
+        if line == "<table>" or line == "</table>":
+            if line == "</table>":
+                text += "\n"  # Add a newline after the table
+            continue
+        elif line == "<tr>":
+            row_cells = []
+            continue
+        elif line == "</tr>":
+            # Output the row cells
+            text += indent + ' | '.join(row_cells) + "\n"
+            row_cells = []
+            continue
+        elif line.startswith("<td>") and line.endswith("</td>"):
+            cell_content = line[4:-5].strip()
+            row_cells.append(cell_content)
+        else:
+            # Regular content outside of table tags
+            text += f"{indent}{line}\n"
+    return text
+
 
 # ----------------------------
 # Main Function
@@ -502,47 +581,70 @@ def convert_raw_to_structured_json(raw_file_path, output_json_path):
 def reconstruct_text(json_file_path):
     """
     Reconstructs raw text from a structured JSON file.
-    
+
     Args:
         json_file_path (str): Path to the structured JSON file.
-        
+
     Returns:
         str: The reconstructed raw text.
     """
     if not os.path.exists(json_file_path):
         logger.error(f"JSON file does not exist: {json_file_path}")
         return ""
-    
+
     logger.info(f"Loading JSON from file: {json_file_path}")
-    
+
     with open(json_file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    
+
     full_text = ""
-    
+
     documents = data.get("documents", [])
     if not documents:
         logger.warning("No documents found in JSON.")
         return full_text
-    
+
     for document in documents:
         doc_number = document.get("Doc_number")
         doc_id = document.get("doc_id")
-        
-        if doc_number is not None:
-            full_text += f"Document Number: {doc_number}\n"
-        
-        if doc_id:
-            full_text += f"Doc ID: {doc_id}\n"
-        
+
         articles = document.get("articles", [])
         for article in articles:
-            full_text += process_section(article)
-        
+            # Pass the doc_id as part of the parent headers
+            full_text += process_section(article, indent_level=0, parent_headers=[doc_id])
+
         # Optionally, add separators between documents
-        full_text += "\n" + "-"*80 + "\n\n"
-    
+        full_text += "\n" + "-" * 80 + "\n\n"
+
     return full_text
+
+
+def process_folder(input_folder, output_folder):
+    """
+    Processes all files in the input folder (and its subfolders), converts them to structured JSON,
+    and saves them in the output folder while preserving the folder hierarchy.
+
+    Args:
+        input_folder (str): Path to the input folder containing the raw files.
+        output_folder (str): Path to the output folder where structured JSON files will be saved.
+    """
+    for root, _, files in os.walk(input_folder):
+        # Compute the relative path from the input folder
+        relative_path = os.path.relpath(root, input_folder)
+        # Determine the corresponding output folder
+        output_subfolder = os.path.join(output_folder, relative_path)
+        os.makedirs(output_subfolder, exist_ok=True)
+
+        for file_name in files:
+            input_file_path = os.path.join(root, file_name)
+            output_file_path = os.path.join(output_subfolder, f"{file_name}.json")
+
+            try:
+                # Convert file to structured JSON
+                logger.info(f"Processing file: {input_file_path}")
+                convert_raw_to_structured_json(input_file_path, output_file_path)
+            except Exception as e:
+                logger.error(f"Failed to process file {input_file_path}: {e}")
 
 
 # ----------------------------
@@ -552,8 +654,8 @@ def reconstruct_text(json_file_path):
 
 if __name__ == "__main__":
     # Example file paths (Adjust these paths accordingly)
-    raw_file = r'C:\Users\PC\git\Legal_QA_format\data\raw\ND-01-2020.docx'        # Replace with your raw file path
-    output_json = r'C:\Users\PC\git\Legal_QA_format\data\raw\ND-01-2020.json'      # Replace with your desired JSON output path
+    raw_file = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.1.1 79_2010_BTC_converted.docx'        # Replace with your raw file path
+    output_json = r'format_service\src\data\raw\1.1.1 79_2010_BTC_converted.json'      # Replace with your desired JSON output path
     
     # Step 1: Convert raw file to structured JSON
     convert_raw_to_structured_json(raw_file, output_json)
@@ -567,7 +669,7 @@ if __name__ == "__main__":
         # print(full_text)
         
         # Option 2: Write to a Text File (Uncomment if needed)
-        reconstructed_text_path = r'C:\Users\PC\git\Legal_QA_format\data\raw\reconstructed_text.txt'
+        reconstructed_text_path = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.1.1 79_2010_BTC_converted.txt'
         with open(reconstructed_text_path, 'w', encoding='utf-8') as f:
             f.write(full_text)
         print(f"Reconstructed text has been written to '{reconstructed_text_path}'")
