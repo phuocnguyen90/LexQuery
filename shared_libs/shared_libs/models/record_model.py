@@ -2,6 +2,7 @@ import json
 import logging
 import pandas as pd
 from typing import Any, Dict, List, Optional
+from shared_libs.utils.file_handler import generate_unique_id
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -84,6 +85,7 @@ class Record:
         """
         Create a Record instance from a JSON dictionary.
         """
+
         try:
             return cls(
                 record_id=data.get('record_id') or generate_unique_id(),

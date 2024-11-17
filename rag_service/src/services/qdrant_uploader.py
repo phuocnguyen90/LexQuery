@@ -8,13 +8,13 @@ from qdrant_client.http import models as qdrant_models
 import boto3
 from botocore.exceptions import ClientError
 
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.models.record_model import Record
 from services.get_embedding_function import get_embedding_function  # Updated import
 
 # Load configuration from shared_libs
-config = ConfigLoader()
+config = AppConfigLoader()
 
 # Configure logging using Logger from shared_libs
 logger = Logger.get_logger(module_name=__name__)

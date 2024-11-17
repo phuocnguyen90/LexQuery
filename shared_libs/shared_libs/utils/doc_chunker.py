@@ -5,14 +5,6 @@ import json
 
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-try:
-    from utils.hierarchy_parser import detect_hierarchy, assign_hierarchy_levels, parse_hierarchy, sanitize_content
-    from utils.file_handler import determine_file_type, extract_text_from_txt, extract_text_from_docx, extract_text_from_pdf, extract_text_from_html
-except ImportError as e:
-    print(f"Import error: {e}")
-    sys.exit(1)
 
 # Configure logger
 try:
@@ -29,14 +21,195 @@ logger = Logger.get_logger(module_name=__name__)
 # Configuration
 # ----------------------------
 # Define all possible hierarchical markers with their regex patterns
+HIERARCHY_MARKERS = {
+    'chapter': re.compile(
+        r'^\s*(?P<chapter_marker>Chương\s+(?P<chapter_value>\w+))(?:\s*[-.]?\s*(?P<chapter_title>.*))?$',
+        re.IGNORECASE | re.MULTILINE | re.UNICODE
+    ),
+    'article': re.compile(
+        r'^\s*(?P<article_marker>Điều\s+(?P<article_value>\d+))(?:\s*[-.]?\s*(?P<article_title>.*))?$',
+        re.IGNORECASE | re.MULTILINE
+    ),
+    'clause': re.compile(
+        r'^\s*(?P<clause_marker>(?P<clause_value>\d+))\s*[-.)]?(?:\s+(?P<clause_title>.+))?$',
+        re.MULTILINE
+    ),
+    'point': re.compile(
+        r'^\s*(?P<point_marker>(?P<point_value>[^\W\d_]))\s*[-.)]?(?:\s+(?P<point_title>.+))?$',
+        re.MULTILINE | re.UNICODE
+    ),
+}
 
-
+# Define the default hierarchy order
+DEFAULT_HIERARCHY_ORDER = ['chapter', 'article', 'clause', 'point']
 
 
 # ----------------------------
 # Helper Functions
 # ----------------------------
 
+def extract_text_from_txt(file_path):
+    """
+    Extracts text from a .txt file.
+    
+    Args:
+        file_path (str): Path to the .txt file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        logger.info(f"Extracted text from TXT file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading TXT file {file_path}: {e}")
+        return ""
+
+def extract_text_from_docx(file_path):
+    """
+    Extracts text from a .docx file, including text inside tables,
+    preserving the order of paragraphs and tables as in the original document,
+    and ensuring each table cell is on its own line.
+
+    Args:
+        file_path (str): Path to the .docx file.
+
+    Returns:
+        str: Extracted text.
+    """
+    import docx
+    try:
+        doc = docx.Document(file_path)
+        full_text = []
+
+        for block in iter_block_items(doc):
+            if isinstance(block, docx.text.paragraph.Paragraph):
+                if block.text.strip():
+                    full_text.append(block.text.strip())
+            elif isinstance(block, docx.table.Table):
+                # Extract text from table
+                full_text.append("<table>")
+                for row in block.rows:
+                    full_text.append("<tr>")
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            # Add each cell content as a separate line
+                            full_text.append(f"<td>{cell_text}</td>")
+                    full_text.append("</tr>")
+                full_text.append("</table>")
+
+        text = '\n'.join(full_text)
+        logger.info(f"Extracted text from DOCX file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading DOCX file {file_path}: {e}")
+        return ""
+
+
+def iter_block_items(parent):
+    """
+    Generate a reference to each paragraph and table child within parent, in document order.
+
+    Args:
+        parent: The parent document or element.
+
+    Yields:
+        Each child paragraph and table in document order.
+    """
+    import docx
+    from docx.oxml.ns import qn
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.table import CT_Tbl
+    from docx.table import _Cell, Table
+    from docx.text.paragraph import Paragraph
+
+    if isinstance(parent, docx.document.Document):
+        parent_element = parent.element.body
+    elif isinstance(parent, _Cell):
+        parent_element = parent._tc
+    else:
+        raise ValueError("Invalid parent type")
+
+    for child in parent_element.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
+
+def extract_text_from_pdf(file_path):
+    """
+    Extracts text from a .pdf file.
+    
+    Args:
+        file_path (str): Path to the .pdf file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    import PyPDF2
+
+    try:
+        reader = PyPDF2.PdfReader(file_path)
+        text = ""
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + '\n'
+        logger.info(f"Extracted text from PDF file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading PDF file {file_path}: {e}")
+        return ""
+
+def extract_text_from_html(file_path):
+    """
+    Extracts text from a .html file.
+    
+    Args:
+        file_path (str): Path to the .html file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    from bs4 import BeautifulSoup
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            soup = BeautifulSoup(f, 'lxml')
+        text = soup.get_text(separator='\n')
+        logger.info(f"Extracted text from HTML file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading HTML file {file_path}: {e}")
+        return ""
+
+def determine_file_type(file_path):
+    """
+    Determines the file type based on its extension.
+    
+    Args:
+        file_path (str): Path to the file.
+        
+    Returns:
+        str: File type ('txt', 'docx', 'pdf', 'html') or 'unsupported'.
+    """
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    if ext == '.txt':
+        return 'txt'
+    elif ext == '.docx':
+        return 'docx'
+    elif ext == '.pdf':
+        return 'pdf'
+    elif ext in ['.html', '.htm']:
+        return 'html'
+    else:
+        return 'unsupported'
 
 def extract_text(file_path):
     """
@@ -48,7 +221,6 @@ def extract_text(file_path):
     Returns:
         str: Extracted text.
     """
-    from utils.file_handler import determine_file_type, extract_text_from_txt, extract_text_from_docx, extract_text_from_pdf, extract_text_from_html
     file_type = determine_file_type(file_path)
     if file_type == 'txt':
         return extract_text_from_txt(file_path)
@@ -62,6 +234,189 @@ def extract_text(file_path):
         logger.warning(f"Unsupported file type for file: {file_path}")
         return ""
 
+def detect_hierarchy(content):
+    """
+    Detects hierarchy markers in the content, excluding table contents.
+
+    Args:
+        content (str): The content to analyze.
+
+    Returns:
+        list: A list of detected hierarchy markers.
+    """
+    detected_markers = set()
+
+    # Remove table contents for hierarchy detection
+    content_without_tables = remove_table_contents(content)
+    lines = content_without_tables.split('\n')
+
+    for line in lines:
+        line = line.strip()
+        for marker_name, pattern in HIERARCHY_MARKERS.items():
+            if marker_name in detected_markers:
+                continue  # Skip if already detected
+            if pattern.match(line):
+                detected_markers.add(marker_name)
+                break  # Move to next line after finding a match
+
+    # Remove 'part' and 'section' if they are not adjacent to 'chapter'
+    if 'chapter' not in detected_markers:
+        detected_markers.discard('part')
+        detected_markers.discard('section')
+
+    return list(detected_markers)
+
+
+
+def assign_hierarchy_levels(detected_markers):
+    hierarchy_mapping = {}
+    level = 1
+    for marker in DEFAULT_HIERARCHY_ORDER:
+        if marker in detected_markers:
+            hierarchy_mapping[marker] = level
+            level += 1
+    return hierarchy_mapping
+
+def adjust_title_and_content(section):
+    if section['title'] and not section['content']:
+        section['content'] = section['title']
+        section['title'] = ''
+    for subsection in section.get('subsections', []):
+        adjust_title_and_content(subsection)
+
+def parse_hierarchy(content, hierarchy_mapping, doc_id):
+    sections = []
+    stack = []
+    last_pos = 0
+
+    # Create a combined regex pattern
+    combined_pattern_parts = []
+    for marker in hierarchy_mapping:
+        pattern = HIERARCHY_MARKERS[marker]
+        combined_pattern_parts.append(f'(?P<{marker}>{pattern.pattern})')
+    combined_pattern = re.compile('|'.join(combined_pattern_parts), re.IGNORECASE | re.MULTILINE | re.UNICODE)
+
+    matches = list(combined_pattern.finditer(content))
+
+    for idx, match in enumerate(matches):
+        start, end = match.span()
+        level = None
+        title = ""
+        header = ""
+        marker_type = ""
+        marker_value = ""
+        marker_part = ""
+
+        # Determine which marker matched
+        for marker in hierarchy_mapping:
+            if match.group(marker):
+                level = hierarchy_mapping[marker]
+                matched_text = match.group(marker)
+                match_details = HIERARCHY_MARKERS[marker].match(matched_text)
+                if match_details:
+                    # Extract marker text, value, and title
+                    marker_text = match_details.group(f'{marker}_marker').strip()
+                    marker_value = match_details.group(f'{marker}_value').strip()
+                    title_text = match_details.group(f'{marker}_title')
+                    # Assign header and title
+                    header = marker_text
+                    if title_text:
+                        title = title_text.strip()
+                    else:
+                        title = ""
+                    # If title is empty, treat the entire line as content
+                    if not title:
+                        content_line = matched_text.strip()
+                    else:
+                        content_line = ""
+                    # Add prefixes as needed
+                    if marker == 'clause':
+                        header = f"Khoản {marker_text}"
+                    elif marker == 'point':
+                        header = f"Điểm {marker_text}"
+                    marker_type = marker
+
+                    # Build the marker_part for this section
+                    if marker_type == 'chapter':
+                        marker_part = f'ch{marker_value}'
+                    elif marker_type == 'article':
+                        marker_part = f'art{int(marker_value):03d}'
+                    elif marker_type == 'clause':
+                        marker_part = f'cl_{int(marker_value):02d}'
+                    elif marker_type == 'point':
+                        marker_part = f'pt_{marker_value}'
+                    else:
+                        marker_part = f'{marker_type}_{marker_value}'
+                break
+
+        if level is None:
+            continue  # No matching marker
+
+        # Assign text between the last position and the current marker to the content of the previous section
+        if last_pos < start:
+            text = content[last_pos:start].strip()
+            if text and stack:
+                # Assign text to the content of the previous section
+                stack[-1]['section']['content'] += '\n' + text if stack[-1]['section']['content'] else text
+
+        # Adjust the stack
+        while stack and stack[-1]['level'] >= level:
+            stack.pop()
+
+        # Build the current markers list for ID generation from the stack
+        current_markers = [entry['marker_part'] for entry in stack] + [marker_part]
+
+        # Build the id
+        unique_id = doc_id + ''.join('_' + m for m in current_markers)
+
+        # Create a new section
+        new_section = {
+            'level': level,
+            'header': header,
+            'title': title,
+            'content': content_line if content_line else '',
+            'subsections': [],
+            'id': unique_id,
+        }
+
+        # Add the section to the appropriate parent
+        if stack:
+            parent_section = stack[-1]['section']
+            parent_section['subsections'].append(new_section)
+        else:
+            sections.append(new_section)
+
+        # Push the new section onto the stack
+        stack.append({
+            'level': level,
+            'section': new_section,
+            'marker_part': marker_part,
+        })
+
+        # Update last_pos
+        last_pos = end
+
+    # Handle any remaining text after the last match
+    if last_pos < len(content):
+        remaining_text = content[last_pos:].strip()
+        if remaining_text and stack:
+            stack[-1]['section']['content'] += '\n' + remaining_text if stack[-1]['section']['content'] else remaining_text
+
+    # Remove 'level' keys from sections
+    def remove_level(section):
+        if 'level' in section:
+            del section['level']
+        for subsection in section.get('subsections', []):
+            remove_level(subsection)
+
+    for section in sections:
+        remove_level(section)
+
+    # Adjust title and content
+    for section in sections:
+        adjust_title_and_content(section)
+
+    return sections
 
 def extract_doc_id(segment_text):
     """
@@ -134,7 +489,8 @@ def extract_main_doc_name(segment_text):
 
 def extract_appendix_doc_name(segment_text):
     """
-    Extracts the document name for an appendix, ignoring text inside <table> tags.
+    Extracts the document name for an appendix, prioritizing ALL CAPS paragraphs
+    and appending descriptive text following them, while excluding dates and boilerplate text.
 
     Args:
         segment_text (str): The text of the appendix.
@@ -142,12 +498,55 @@ def extract_appendix_doc_name(segment_text):
     Returns:
         str: Extracted document name.
     """
+    import re
+
     # Remove text inside <table> tags
     cleaned_text = remove_table_content(segment_text)
-    # Extract paragraphs
+
+    # Define boilerplate phrases to remove completely
+    boilerplate_phrases = [
+        r"cộng hòa xã hội chủ nghĩa việt nam",  # "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
+        r"độc lập - tự do - hạnh phúc",         # "Độc lập - Tự do - Hạnh phúc"
+        r"ban hành kèm",                        # Normalized "ban hành kèm"
+        r"\b\d{1,2}/\d{1,2}/\d{4}\b",           # Matches dd/mm/yyyy
+        r"ngày\s+\d{1,2}.*?năm\s+\d{4}",        # Matches 'ngày dd tháng mm năm yyyy'
+        r"năm\s+\d{4}",                         # Matches standalone 'năm yyyy'
+        r"\d{1,2}\s*[/-]\s*\d{1,2}\s*[/-]\s*\d{4}"  # Matches dd-mm-yyyy or dd/mm/yyyy with loose formatting
+    ]
+
+    # Compile boilerplate regex
+    boilerplate_regex = re.compile("|".join(boilerplate_phrases), re.IGNORECASE)
+
+    # Remove boilerplate phrases from the segment text completely
+    cleaned_text = boilerplate_regex.sub("", cleaned_text)
+
+    # Extract and normalize paragraphs
     paragraphs = [p.strip() for p in cleaned_text.split("\n") if p.strip()]
-    # Return the first two paragraphs as the document name
-    return " ".join(paragraphs[:2]) if paragraphs else ""
+
+    # Start building the appendix name
+    appendix_name = ""
+
+    # Attempt to find a meaningful ALL CAPS paragraph for the appendix name
+    for paragraph in paragraphs:
+        # Check for ALL CAPS paragraph (potential document name)
+        if paragraph.isupper() and len(paragraph) > 3:  # We only consider paragraphs longer than 3 characters
+            appendix_name = paragraph
+            # Attempt to append descriptive text after the ALL CAPS paragraph
+            next_index = paragraphs.index(paragraph) + 1
+            if next_index < len(paragraphs):
+                next_paragraph = paragraphs[next_index]
+                if not next_paragraph.isupper():  # Only append if next paragraph is not ALL CAPS
+                    appendix_name += " " + next_paragraph.strip()
+            break
+
+    # Fallback if no ALL CAPS paragraph is found
+    if not appendix_name and paragraphs:
+        # Use the first one or two valid paragraphs as the document name
+        appendix_name = " ".join(paragraphs[:2])
+
+    return appendix_name.strip()
+
+
 
 def remove_table_content(text):
     """
@@ -168,7 +567,7 @@ def remove_table_content(text):
 def process_raw_file(file_path, output_json_path):
     """
     Processes a single raw text file and converts it into a structured JSON file,
-    handling segmentation of the main document and appendices.
+    handling segmentation of the main document, appendices, and forms/templates.
 
     Args:
         file_path (str): Path to the raw text file.
@@ -214,21 +613,57 @@ def process_raw_file(file_path, output_json_path):
             segment_id = main_doc_id if doc_number == 1 else appendix_id
             if not detected_markers:
                 logger.warning(f"No hierarchical markers detected in segment {doc_number}.")
-                structured_sections = [ {
+                structured_sections = [{
                     'header': '',
                     'title': '',
                     'content': segment_text,
                     'subsections': []
                 }]
             else:
-                # Assign new hierarchy levels, effectively resetting for each segment
                 hierarchy_mapping = assign_hierarchy_levels(detected_markers)
-                structured_sections = parse_hierarchy(segment_text, hierarchy_mapping, segment_id)
+                structured_sections = parse_document(segment_text, hierarchy_mapping, segment_id)
+
+            # Detect forms/templates within appendices
+            if doc_number > 1:
+                forms = detect_forms_in_appendix(segment_text)
+                appendix_content = structured_sections
+                structured_sections = []  # Reorganize appendices with forms
+
+                paragraphs = segment_text.split("\n")
+                for form in forms:
+                    form_id = f"{appendix_id}_{form['form_id']}"
+                    form_paragraphs = "\n".join(paragraphs[form['start']:form['end']])
+                    form_markers = detect_hierarchy(form_paragraphs)
+                    form_hierarchy = assign_hierarchy_levels(form_markers)
+                    form_sections = parse_document(form_paragraphs, form_hierarchy, form_id)
+                    form_sections = clean_redundant_content(form_sections)  # Clean form content
+                    structured_sections.append({
+                        "header": f"Form {form['form_id']}",
+                        "title": "",
+                        "content": form['text'],
+                        "id": form_id,
+                        "subsections": form_sections
+                    })
+
+                # Add remaining appendix content that isn't part of forms
+                non_form_content = [p for idx, p in enumerate(paragraphs) if all(idx < form['start'] or idx >= form['end'] for form in forms)]
+                if non_form_content:
+                    appendix_content = clean_redundant_content(appendix_content)  # Clean appendix content
+                    structured_sections.append({
+                        "header": "Appendix Content",
+                        "title": "",
+                        "content": "\n".join(non_form_content),
+                        "id": appendix_id,
+                        "subsections": appendix_content
+                    })
+
+            # Clean redundant content in structured sections
+            structured_sections = clean_redundant_content(structured_sections)
 
             # Create structured JSON for the segment
             document_json = {
                 "doc_number": doc_number,
-                "doc_id": segment_id,
+                "doc_id": main_doc_id if doc_number == 1 else appendix_id,
                 "doc_name": doc_name,
                 "articles": structured_sections
             }
@@ -295,10 +730,7 @@ def find_section_by_id(section, section_id):
     Returns:
         dict or None: The section with the matching id, or None if not found.
     """
-    logger.debug(f"Searching in section with ID: {section.get('id')} for target ID: {section_id}")
-    
     if section.get('id') == section_id:
-        logger.debug(f"Found matching section with ID: {section_id}")
         return section
 
     for subsection in section.get('subsections', []):
@@ -308,10 +740,10 @@ def find_section_by_id(section, section_id):
 
     return None
 
-
 def retrieve_section_text(section_id, json_file_path):
     """
-    Retrieves and reconstructs the text of a specific section by its id.
+    Retrieves and reconstructs the text of a specific section by its id, with redundancy to retrieve 
+    based on partial id if the full id is not found.
 
     Args:
         section_id (str): The id of the section to retrieve.
@@ -337,6 +769,7 @@ def retrieve_section_text(section_id, json_file_path):
     # Extract the document ID and unique marker from the section ID
     doc_id, _, unique_marker = section_id.partition('_')
 
+    # Traverse documents to find the section with the specified id
     for document in documents:
         if document.get("doc_id") != doc_id:
             continue
@@ -347,7 +780,6 @@ def retrieve_section_text(section_id, json_file_path):
         for article in articles:
             section = find_section_by_id(article, section_id)
             if section:
-                logger.debug(f"Found section by exact match for ID: {section_id}")
                 return process_section(section, include_full_hierarchy=False)
 
         # Fallback search: Look for the section using only the unique marker
@@ -359,7 +791,6 @@ def retrieve_section_text(section_id, json_file_path):
 
     logger.warning(f"Section with id '{section_id}' not found, even with fallback.")
     return ""
-
 
 def find_section_by_partial_id(section, unique_marker):
     """
@@ -454,8 +885,6 @@ def process_section(section, indent_level=0, include_full_hierarchy=False, paren
 
 import re
 
-import re
-
 def identify_and_segment_document(content):
     """
     Identifies and segments a document into the main document and appendices based on rules.
@@ -464,13 +893,12 @@ def identify_and_segment_document(content):
         content (str): The raw text of the document.
 
     Returns:
-        list: A list of segments, each representing a part of the document with `doc_number`.
+        list: A list of segments, each representing a part of the document with doc_number.
     """
     segments = []  # To store segments of the document
     current_segment = {"doc_number": 1, "content": ""}
     paragraphs = content.split("\n")
     inside_table = False
-    current_segment_start_idx = 0
 
     for idx, para in enumerate(paragraphs):
         para = para.strip()
@@ -482,14 +910,12 @@ def identify_and_segment_document(content):
                 if current_segment["content"].strip():
                     segments.append(current_segment)
                 current_segment = {"doc_number": len(segments) + 1, "content": ""}
-                current_segment_start_idx = idx
                 continue
 
         # Rule 2: Check for "Phụ lục" and Roman numerals or similar markers
         if re.match(r"Phụ lục\s+[IVXLCDM\-A-Za-z0-9\.]*", para, re.IGNORECASE):
             points = 40  # Initial point for potential appendix marker
-
-            # Check the next 3 paragraphs or the nearest table to validate it's an appendix marker
+            # Check the next 3 paragraphs or the nearest table
             for offset in range(1, 4):
                 if idx + offset < len(paragraphs):
                     next_para = paragraphs[idx + offset].strip()
@@ -510,18 +936,9 @@ def identify_and_segment_document(content):
 
             # If points >= 50%, treat it as a new appendix
             if points >= 50:
-                # Capture paragraphs immediately preceding and following the marker to avoid missing context
-                preceding_paragraphs = "\n".join(paragraphs[current_segment_start_idx:idx])
-                if preceding_paragraphs.strip():
-                    current_segment["content"] += preceding_paragraphs.strip() + "\n"
-                
                 if current_segment["content"].strip():
                     segments.append(current_segment)
-                
-                # Start a new segment and include the marker paragraph
                 current_segment = {"doc_number": len(segments) + 1, "content": ""}
-                current_segment_start_idx = idx
-                current_segment["content"] += para + "\n"
                 continue
 
         # Add the current paragraph to the current segment
@@ -532,7 +949,6 @@ def identify_and_segment_document(content):
         segments.append(current_segment)
 
     return segments
-
 
 def clean_redundant_content(sections):
     """
@@ -571,6 +987,43 @@ def clean_redundant_content(sections):
 
     return sections
 
+def remove_table_contents(content):
+    """
+    Removes all content within <table>...</table> tags.
+
+    Args:
+        content (str): The original content containing potential table tags.
+
+    Returns:
+        str: Content with table sections removed.
+    """
+    import re
+    table_pattern = re.compile(r'<table>.*?</table>', re.DOTALL)
+    return table_pattern.sub('', content)
+
+
+def sanitize_content(content):
+    """
+    Sanitizes the content to ensure it does not interfere with JSON structure.
+    Escapes special characters like ' and ".
+
+    Args:
+        content (str): The raw content to sanitize.
+
+    Returns:
+        str: Sanitized content.
+    """
+    if not content:
+        return content
+
+    # Escape backslashes, then escape double quotes and single quotes
+    content = content.replace("\\", "\\\\")  # Escape backslashes first
+    content = content.replace("\"", "\\\"")  # Escape double quotes
+    content = content.replace("'", "\\'")    # Escape single quotes
+
+
+
+    return content
 
 
 # ----------------------------
@@ -621,7 +1074,7 @@ def reconstruct_text(json_file_path):
     for document in documents:
         articles = document.get("articles", [])
         for article in articles:
-            # Pass `include_full_hierarchy=True` for full references
+            # Pass include_full_hierarchy=True for full references
             full_text += process_section(article, include_full_hierarchy=True)
 
         # Optionally, add separators between documents
@@ -797,5 +1250,3 @@ if __name__ == "__main__":
         print(f"Reconstructed text has been written to '{reconstructed_text_path}'")
     else:
         print("No text was reconstructed.")
-
-
