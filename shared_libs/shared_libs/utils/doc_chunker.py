@@ -20,39 +20,28 @@ logger = Logger.get_logger(module_name=__name__)
 # ----------------------------
 # Configuration
 # ----------------------------
-
-
 # Define all possible hierarchical markers with their regex patterns
-# Updated HIERARCHY_MARKERS
 HIERARCHY_MARKERS = {
-    'chương': re.compile(
-        r'^\s*(?P<chương_marker>chương\s+[IVXLC]+)\s*[-.]?\s*(?P<chương_title>.+)?$',
+    'chapter': re.compile(
+        r'^\s*(?P<chapter_marker>Chương\s+(?P<chapter_value>\w+))(?:\s*[-.]?\s*(?P<chapter_title>.*))?$',
+        re.IGNORECASE | re.MULTILINE | re.UNICODE
+    ),
+    'article': re.compile(
+        r'^\s*(?P<article_marker>Điều\s+(?P<article_value>\d+))(?:\s*[-.]?\s*(?P<article_title>.*))?$',
         re.IGNORECASE | re.MULTILINE
     ),
-    'mục': re.compile(
-        r'^\s*(?P<mục_marker>mục\s+[IVXLC]+|\d+)\s*[-.]?\s*(?P<mục_title>.+)?$',
-        re.IGNORECASE | re.MULTILINE
-    ),
-    'điều': re.compile(
-        r'^\s*(?P<điều_marker>điều\s+\d+)\s*[-.]?\s*(?P<điều_title>.+)?$',
-        re.IGNORECASE | re.MULTILINE
-    ),
-    'roman_numeral': re.compile(
-        r'^\s*(?P<roman_numeral_marker>[IVXLC]+)\.\s*(?P<roman_numeral_title>.+)$',
+    'clause': re.compile(
+        r'^\s*(?P<clause_marker>(?P<clause_value>\d+))\s*[-.)]?(?:\s+(?P<clause_title>.+))?$',
         re.MULTILINE
     ),
-    'number_dot': re.compile(
-        r'^\s*(?P<number_dot_marker>\d+)\.\s*(?P<number_dot_title>.+)$',
-        re.MULTILINE
-    ),
-    'level4_alpha': re.compile(
-        r'^\s*(?P<level4_alpha_marker>[a-zA-Z]{1,2})\)\s*(?P<level4_alpha_title>.+)$',
-        re.MULTILINE
+    'point': re.compile(
+        r'^\s*(?P<point_marker>(?P<point_value>[^\W\d_]))\s*[-.)]?(?:\s+(?P<point_title>.+))?$',
+        re.MULTILINE | re.UNICODE
     ),
 }
 
 # Define the default hierarchy order
-DEFAULT_HIERARCHY_ORDER = ['chương', 'roman_numeral', 'mục', 'điều', 'number_dot', 'level4_alpha']
+DEFAULT_HIERARCHY_ORDER = ['chapter', 'article', 'clause', 'point']
 
 
 # ----------------------------
@@ -246,115 +235,154 @@ def extract_text(file_path):
         return ""
 
 def detect_hierarchy(content):
-    """
-    Detects which hierarchical markers are present in the document.
-    
-    Args:
-        content (str): The raw text content of the document.
-        
-    Returns:
-        list: List of hierarchical markers detected, ordered by their priority.
-    """
-    detected_markers = []
-    for marker in DEFAULT_HIERARCHY_ORDER:
-        pattern = HIERARCHY_MARKERS[marker]
-        if pattern.search(content):
-            detected_markers.append(marker)
-            logger.debug(f"Detected hierarchical marker: {marker}")
-    return detected_markers
+    detected_markers = set()
+    lines = content.split('\n')
+
+    for line in lines:
+        line = line.strip()
+        for marker_name, pattern in HIERARCHY_MARKERS.items():
+            if marker_name in detected_markers:
+                continue  # Already detected this marker
+            if pattern.match(line):
+                detected_markers.add(marker_name)
+                break  # Move to next line after finding a match
+
+    return list(detected_markers)
+
 
 def assign_hierarchy_levels(detected_markers):
-    """
-    Assigns hierarchical levels based on detected markers.
-    
-    Args:
-        detected_markers (list): List of hierarchical markers detected.
-        
-    Returns:
-        dict: Mapping of hierarchical markers to their assigned levels.
-    """
     hierarchy_mapping = {}
     level = 1
-    for marker in detected_markers:
-        hierarchy_mapping[marker] = level
-        logger.debug(f"Assigned level {level} to marker: {marker}")
-        level += 1
+    for marker in DEFAULT_HIERARCHY_ORDER:
+        if marker in detected_markers:
+            hierarchy_mapping[marker] = level
+            level += 1
     return hierarchy_mapping
 
-def parse_hierarchy(content, hierarchy_mapping):
+def adjust_title_and_content(section):
+    if section['title'] and not section['content']:
+        section['content'] = section['title']
+        section['title'] = ''
+    for subsection in section.get('subsections', []):
+        adjust_title_and_content(subsection)
+
+def parse_hierarchy(content, hierarchy_mapping, doc_id):
     sections = []
-    stack = []  # Stack to keep track of hierarchy levels
+    stack = []
     last_pos = 0
 
-    # Create a combined regex pattern based on detected hierarchy markers
+    # Create a combined regex pattern
     combined_pattern_parts = []
     for marker in hierarchy_mapping:
         pattern = HIERARCHY_MARKERS[marker]
         combined_pattern_parts.append(f'(?P<{marker}>{pattern.pattern})')
-    combined_pattern = re.compile('|'.join(combined_pattern_parts), re.IGNORECASE | re.MULTILINE)
+    combined_pattern = re.compile('|'.join(combined_pattern_parts), re.IGNORECASE | re.MULTILINE | re.UNICODE)
 
-    for match in combined_pattern.finditer(content):
+    matches = list(combined_pattern.finditer(content))
+
+    for idx, match in enumerate(matches):
         start, end = match.span()
-        matched_text = match.group().strip()
         level = None
         title = ""
         header = ""
+        marker_type = ""
+        marker_value = ""
+        marker_part = ""
 
-        # Determine which group matched
+        # Determine which marker matched
         for marker in hierarchy_mapping:
             if match.group(marker):
                 level = hierarchy_mapping[marker]
+                matched_text = match.group(marker)
                 match_details = HIERARCHY_MARKERS[marker].match(matched_text)
                 if match_details:
-                    # Extract the title and header based on the specific marker's title group
-                    title_group_name = f"{marker}_title"
-                    marker_group_name = f"{marker}_marker"
-                    if title_group_name in match_details.groupdict():
-                        title = match_details.group(title_group_name).strip()
-                    if marker_group_name in match_details.groupdict():
-                        header = match_details.group(marker_group_name).strip()
+                    # Extract marker text, value, and title
+                    marker_text = match_details.group(f'{marker}_marker').strip()
+                    marker_value = match_details.group(f'{marker}_value').strip()
+                    title_text = match_details.group(f'{marker}_title')
+                    # Assign header and title
+                    header = marker_text
+                    if title_text:
+                        title = title_text.strip()
                     else:
-                        header = matched_text
+                        title = ""
+                    # If title is empty, treat the entire line as content
+                    if not title:
+                        content_line = matched_text.strip()
+                    else:
+                        content_line = ""
+                    # Add prefixes as needed
+                    if marker == 'clause':
+                        header = f"Khoản {marker_text}"
+                    elif marker == 'point':
+                        header = f"Điểm {marker_text}"
+                    marker_type = marker
+
+                    # Build the marker_part for this section
+                    if marker_type == 'chapter':
+                        marker_part = f'ch{marker_value}'
+                    elif marker_type == 'article':
+                        marker_part = f'art{int(marker_value):03d}'
+                    elif marker_type == 'clause':
+                        marker_part = f'cl_{int(marker_value):02d}'
+                    elif marker_type == 'point':
+                        marker_part = f'pt_{marker_value}'
+                    else:
+                        marker_part = f'{marker_type}_{marker_value}'
                 break
 
         if level is None:
-            continue  # Skip if no level matched
+            continue  # No matching marker
 
-        # Extract the text between the last match and current match
-        text = content[last_pos:start].strip()
-        if text:
-            # Assign text to the content of the last section
-            if stack:
-                current = stack[-1]
-                current['content'] += '\n' + text if current['content'] else text
+        # Assign text between the last position and the current marker to the content of the previous section
+        if last_pos < start:
+            text = content[last_pos:start].strip()
+            if text and stack:
+                # Assign text to the content of the previous section
+                stack[-1]['section']['content'] += '\n' + text if stack[-1]['section']['content'] else text
 
-        # Create a new section based on the detected level
-        new_section = {
-            'header': header,
-            'title': title,
-            'content': '',
-            'subsections': []
-        }
-
-        # Adjust the stack based on the hierarchy level
+        # Adjust the stack
         while stack and stack[-1]['level'] >= level:
             stack.pop()
+
+        # Build the current markers list for ID generation from the stack
+        current_markers = [entry['marker_part'] for entry in stack] + [marker_part]
+
+        # Build the id
+        unique_id = doc_id + ''.join('_' + m for m in current_markers)
+
+        # Create a new section
+        new_section = {
+            'level': level,
+            'header': header,
+            'title': title,
+            'content': content_line if content_line else '',
+            'subsections': [],
+            'id': unique_id,
+        }
+
+        # Add the section to the appropriate parent
         if stack:
-            parent = stack[-1]
-            parent['subsections'].append(new_section)
+            parent_section = stack[-1]['section']
+            parent_section['subsections'].append(new_section)
         else:
             sections.append(new_section)
-        stack.append({'level': level, **new_section})
 
-        # Update the last position
+        # Push the new section onto the stack
+        stack.append({
+            'level': level,
+            'section': new_section,
+            'marker_part': marker_part,
+        })
+
+        # Update last_pos
         last_pos = end
 
-    # Assign any remaining text after the last match
+    # Handle any remaining text after the last match
     if last_pos < len(content):
         remaining_text = content[last_pos:].strip()
         if remaining_text and stack:
-            current = stack[-1]
-            current['content'] += '\n' + remaining_text if current['content'] else remaining_text
+            stack[-1]['section']['content'] += '\n' + remaining_text if stack[-1]['section']['content'] else remaining_text
 
     # Remove 'level' keys from sections
     def remove_level(section):
@@ -366,7 +394,12 @@ def parse_hierarchy(content, hierarchy_mapping):
     for section in sections:
         remove_level(section)
 
+    # Adjust title and content
+    for section in sections:
+        adjust_title_and_content(section)
+
     return sections
+
 
 
 def create_structured_json(doc_number, doc_id, articles):
@@ -387,28 +420,14 @@ def create_structured_json(doc_number, doc_id, articles):
         "articles": articles
     }
 
-def parse_document(content, hierarchy_mapping):
-    """
-    Parses the entire document content based on the hierarchy mapping.
-    
-    Args:
-        content (str): The raw text content of the document.
-        hierarchy_mapping (dict): Mapping of hierarchical markers to their levels.
-        
-    Returns:
-        list: List of structured articles.
-    """
-    structured_sections = parse_hierarchy(content, hierarchy_mapping)
-    return structured_sections
+# Parse the hierarchy and get the root sections and stack entries
+def parse_document(content, hierarchy_mapping, doc_id):
+    # Parse the hierarchy and assign IDs during parsing
+    sections = parse_hierarchy(content, hierarchy_mapping, doc_id)
+    return sections
+
 
 def process_raw_file(file_path, output_json_path):
-    """
-    Processes a single raw text file and converts it into a structured JSON file.
-
-    Args:
-        file_path (str): Path to the raw text file.
-        output_json_path (str): Path to save the structured JSON file.
-    """
     try:
         # Extract file name from the file path
         doc_filename = os.path.basename(file_path)
@@ -441,6 +460,10 @@ def process_raw_file(file_path, output_json_path):
                 doc_id = match.group(1).strip()
                 break
 
+        if not doc_id:
+            # If doc_id is still empty, assign a default or generate one
+            doc_id = "DOC"
+
         # Detect hierarchical markers in the document
         detected_markers = detect_hierarchy(raw_text)
         if not detected_markers:
@@ -449,11 +472,12 @@ def process_raw_file(file_path, output_json_path):
                 'header': '',
                 'title': '',
                 'content': raw_text,
-                'subsections': []
+                'subsections': [],
+                'id': doc_id
             }]
         else:
             hierarchy_mapping = assign_hierarchy_levels(detected_markers)
-            structured_sections = parse_document(raw_text, hierarchy_mapping)
+            structured_sections = parse_document(raw_text, hierarchy_mapping, doc_id)
 
         # Create structured JSON object
         doc_number = 1  # Assuming one document per file
@@ -473,18 +497,6 @@ def process_raw_file(file_path, output_json_path):
         logger.error(f"Error processing file {file_path}: {e}")
 
 def process_section(section, indent_level=0, parent_headers=None):
-    """
-    Recursively processes a section or subsection to reconstruct text,
-    including full hierarchy headers.
-
-    Args:
-        section (dict): The current section or subsection.
-        indent_level (int): Current indentation level for formatting.
-        parent_headers (list): List of headers from parent sections.
-
-    Returns:
-        str: The reconstructed text for this section.
-    """
     if parent_headers is None:
         parent_headers = []
 
@@ -495,30 +507,30 @@ def process_section(section, indent_level=0, parent_headers=None):
     title = section.get("title", "")
     content = section.get("content", "")
 
-    # Update the list of parent headers
+    # Update parent headers
     current_headers = parent_headers + [header] if header else parent_headers
 
-    # Construct the full reference
+    # Construct full reference
     full_reference = ', '.join(filter(None, reversed(current_headers)))
 
-    # Add the full reference to the text
+    # Add full reference
     if full_reference:
         text += f"{indent}{full_reference}\n"
 
-    # Add the title if it exists
+    # Add title if present
     if title:
         text += f"{indent}{title}\n"
 
-    # Add the content
+    # Add content
     if content:
         text += f"{indent}{content}\n"
 
-    # Process subsections recursively
-    subsections = section.get("subsections", [])
-    for subsection in subsections:
+    # Process subsections
+    for subsection in section.get("subsections", []):
         text += process_section(subsection, indent_level + 1, current_headers)
 
     return text
+
 
 
 def reconstruct_table(content, indent_level):
@@ -655,7 +667,7 @@ def process_folder(input_folder, output_folder):
 if __name__ == "__main__":
     # Example file paths (Adjust these paths accordingly)
     raw_file = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.1.1 79_2010_BTC_converted.docx'        # Replace with your raw file path
-    output_json = r'format_service\src\data\raw\1.1.1 79_2010_BTC_converted.json'      # Replace with your desired JSON output path
+    output_json = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.1.1 79_2010_BTC_converted.json'      # Replace with your desired JSON output path
     
     # Step 1: Convert raw file to structured JSON
     convert_raw_to_structured_json(raw_file, output_json)
