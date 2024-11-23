@@ -8,13 +8,13 @@ import sys
 from typing import Optional, Dict, Any, Tuple
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.file_handler import read_input_file, output_2_jsonl, load_record
-from utils.validation import load_schema, validate_record, is_english
-from utils.load_config import load_config
-from providers import ProviderFactory  # Ensure providers are properly structured
-from utils.retry_handler import retry
-from utils.llm_formatter import LLMFormatter
+from shared_libs.utils.file_handler import read_input_file, output_2_jsonl, load_record
+from validation import load_schema, validate_record, is_english
+from shared_libs.config.config_loader import AppConfigLoader
 
+from shared_libs.utils.deprecated.retry_handler import retry
+from llm_formatter import LLMFormatter
+from shared_libs.utils.doc_retriever import DocRetriever
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class PostProcessor:
     def __init__(self, config_path: str):
-        self.config = load_config(config_path)
+        self.config = AppConfigLoader(config_path)
         self.postprocessing_schema = load_schema('config/schemas/postprocessing_schema.yaml')
         self.llm_formatter=LLMFormatter
 
@@ -62,15 +62,15 @@ class PostProcessor:
 
     def find_best_matching_document(self, record) -> Tuple[str, str, float]:
         """ Find the best matching document based on content. """
-        mentions = extract_document_mentions(record.content)
-        issue_date = extract_issue_date(record.content)
+        mentions = DocRetriever.extract_document_mentions(record.content)
+        issue_date = DocRetriever.extract_issue_year_from_mention(record.content)
         best_score = 0.0
         best_doc_id = None
         best_file_name = None
 
         for mention in mentions:
             for doc in self.documents:  # Ensure documents are loaded or passed to this method
-                score = calculate_matching_score(doc, mention, issue_date)
+                score = DocRetriever.calculate_matching_score(doc, mention, issue_date)
                 if score > best_score:
                     best_score = score
                     best_doc_id = doc['id'] 

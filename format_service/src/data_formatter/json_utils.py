@@ -1,8 +1,11 @@
+# Generate simplified version of structured JSON for uploading
 import json
 import os
 from bs4 import BeautifulSoup
 from shared_libs.utils.doc_chunker import retrieve_section_text
-
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from typing import List, Dict
 
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader
@@ -67,6 +70,39 @@ def process_appendix_content(content):
     # Additional cleanup if needed (remove extra tags, etc.)
     return content.strip()
 
+def split_by_semantic_cohesion(clauses: List[Dict], model, max_words=300, similarity_threshold=0.6):
+    """
+    Split clauses into cohesive chunks based on semantic similarity.
+    """
+    chunks = []
+    current_chunk = []
+    current_word_count = 0
+
+    # Encode clauses for semantic similarity
+    clause_embeddings = model.encode([clause["content"] for clause in clauses])
+
+    for i, clause in enumerate(clauses):
+        clause_word_count = len(clause["content"].split())
+
+        # If adding this clause exceeds the word limit or breaks semantic cohesion
+        if (current_word_count + clause_word_count > max_words or
+                (current_chunk and
+                 np.dot(clause_embeddings[i], clause_embeddings[i - 1]) /
+                 (np.linalg.norm(clause_embeddings[i]) * np.linalg.norm(clause_embeddings[i - 1])) < similarity_threshold)):
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_word_count = 0
+
+        # Add clause to the current chunk
+        current_chunk.append(clause)
+        current_word_count += clause_word_count
+
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+
 def generate_combined_structure(json_file_path, output_file_path):
     """
     Generate a combined structure JSON file:
@@ -102,43 +138,85 @@ def generate_combined_structure(json_file_path, output_file_path):
                     continue  # Skip if no subsections (no articles)
 
                 # Construct chapter text from header and content
-                chapter_text = f"{chapter.get('header', '').strip()} {chapter.get('content', '').strip()}".strip()
+                chapter_header = chapter.get('header', '').strip()
+                chapter_content = chapter.get('content', '').strip()
+                chapter_title = chapter.get('title', '').strip()
 
                 articles = []
                 for article in chapter.get("subsections", []):
                     article_id = article.get("id")
-                    # Use directly reconstructed text to avoid searching
+                    article_header = f"{article.get('header', '').strip()} {chapter_header}".strip()
+                    article_title = article.get('title', '').strip() or article.get('content', '').strip()
+
                     article_text = directly_reconstruct_text(article, include_full_hierarchy=False)
                     article_word_count = count_words(article_text)
 
                     if article_word_count < 300:
                         # Keep the article as a single unit
-                        articles.append({"article_id": article_id, "text": article_text})
+                        articles.append({
+                            "article_id": article_id,
+                            "content": article_text,
+                            "header": article_header,
+                            "title": article_title
+                        })
                     else:
-                        # Retain clauses for longer articles but avoid repeating full content
-                        article_text = f"{article.get('header', '').strip()} {article.get('title', '').strip()}"
+                        # Retain clauses for longer articles but inherit the article's title/content
+                        article_text = f"{article.get('header', '').strip()} {article_title}"
                         clauses = []
                         for clause in article.get("subsections", []):
                             clause_id = clause.get("id")
+                            clause_header = f"{clause.get('header', '').strip()} {article_header}".strip()
+                            clause_title = article_title  # Always use article's title as clause title
+
                             clause_text = directly_reconstruct_text(clause, include_full_hierarchy=False)
                             clause_word_count = count_words(clause_text)
 
                             if clause_word_count < 300:
-                                clauses.append({"clause_id": clause_id, "text": clause_text})
+                                clauses.append({
+                                    "clause_id": clause_id,
+                                    "content": clause_text,
+                                    "header": clause_header,
+                                    "title": clause_title
+                                })
                             else:
-                                # Retain points for longer clauses but avoid repeating full content
-                                clause_text = f"{clause.get('header', '').strip()} {clause.get('title', '').strip()}"
+                                # Retain points for longer clauses but inherit the article's title/content
+                                clause_text = f"{clause.get('header', '').strip()} {clause_title}"
                                 points = []
                                 for point in clause.get("subsections", []):
                                     point_id = point.get("id")
+                                    point_header = f"{point.get('header', '').strip()} {clause_header}".strip()
+                                    point_title = article_title  # Always use article's title as point title
+
                                     point_text = directly_reconstruct_text(point, include_full_hierarchy=False)
-                                    points.append({"point_id": point_id, "text": point_text})
+                                    points.append({
+                                        "point_id": point_id,
+                                        "content": point_text,
+                                        "header": point_header,
+                                        "title": point_title
+                                    })
 
-                                clauses.append({"clause_id": clause_id, "text": clause_text, "points": points})
+                                clauses.append({
+                                    "clause_id": clause_id,
+                                    "content": clause_text,
+                                    "header": clause_header,
+                                    "title": clause_title,
+                                    "points": points
+                                })
 
-                        articles.append({"article_id": article_id, "text": article_text, "clauses": clauses})
+                        articles.append({
+                            "article_id": article_id,
+                            "content": article_text,
+                            "header": article_header,
+                            "title": article_title,
+                            "clauses": clauses
+                        })
 
-                chapters.append({"chapter_id": chapter.get("id"), "text": chapter_text, "articles": articles})
+                chapters.append({
+                    "chapter_id": chapter.get("id"),
+                    "header": chapter_header,
+                    "title": chapter_title,
+                    "articles": articles
+                })
 
             # Store the main document
             main_document = {
@@ -167,7 +245,7 @@ def generate_combined_structure(json_file_path, output_file_path):
     with open(output_file_path, 'w', encoding='utf-8') as outfile:
         json.dump(simple_structure, outfile, ensure_ascii=False, indent=4)
 
-    print(f"Simplified structure saved to: {output_file_path}")
+    logger.debug(f"Simplified structure saved to: {output_file_path}")
 
 
 def flatten_appendix_content(document):
@@ -260,8 +338,8 @@ def process_folder(input_folder, output_folder):
 
 
 
-input_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP'
-output_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP\simplified'
+input_folder=r'format_service\src\data\preprocessed'
+output_folder=r'format_service\src\data\preprocessed\simplified'
 
 
 if __name__ == "__main__":

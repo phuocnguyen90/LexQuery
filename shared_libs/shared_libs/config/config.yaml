@@ -4,8 +4,8 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  provider: "ec2"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
-  mode: "api" # Options for embedding calling from query_rag() method: local or API
+  provider: "local"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
+  mode: "local" # Options for embedding calling from query_rag() method: local or API
   api_service_url: "http://54.174.232.98:8000/embed"
   # API Endpoint-based Embedding Providers
   api_providers:

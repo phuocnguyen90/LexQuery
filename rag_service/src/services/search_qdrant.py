@@ -55,7 +55,7 @@ async def search_qdrant(
 
     :param embedding_vector: The embedding vector of the query.
     :param top_k: Number of top similar documents to retrieve.
-    :return: List of dictionaries containing 'record_id', 'source', and 'content'.
+    :return: List of dictionaries containing 'record_id', 'source', 'content', and similarity score.
     """
     if not embedding_vector:
         logger.error("No embedding vector provided for Qdrant search.")
@@ -70,16 +70,27 @@ async def search_qdrant(
             limit=top_k,
             with_payload=True
         )
+        unique_results = {}
+        for hit in search_result:
+            record_id = hit.payload.get("record_id", "")
+            if record_id not in unique_results:
+                unique_results[record_id] = hit
+        search_result = list(unique_results.values())
 
         results = []
         for hit in search_result:
             payload = hit.payload
+            similarity_score = hit.score  # Access similarity score
             results.append({
                 "record_id": payload.get("record_id", ""),
                 "source": payload.get("source", ""),
                 "content": payload.get("content", ""),
-                "model_info": payload.get("model_info", {})  # Include model info
+                "model_info": payload.get("model_info", {}),  # Include model info
+                "similarity_score": similarity_score  # Include similarity score
             })
+            # Log the similarity score for each result
+            logger.debug(f"Document ID: {payload.get('record_id', '')}, "
+                         f"Similarity Score: {similarity_score:.4f}")
 
         if results:
             logger.debug(f"Found {len(results)} documents for the embedding.")
@@ -90,4 +101,5 @@ async def search_qdrant(
     except Exception as e:
         logger.error(f"Error during Qdrant search: {e}")
         return []
+
 

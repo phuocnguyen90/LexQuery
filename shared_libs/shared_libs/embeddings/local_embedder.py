@@ -34,7 +34,7 @@ class LocalEmbedder(BaseEmbedder):
                 return []
 
             embedding = np.array(embeddings)
-            logger.debug(f"Raw embedding: {embedding}")
+            # logger.debug(f"Raw embedding: {embedding}")
             # Handle 2D arrays with a single embedding vector
             if embedding.ndim == 2 and embedding.shape[0] == 1:
                 embedding = embedding[0]
@@ -62,7 +62,7 @@ class LocalEmbedder(BaseEmbedder):
                 return [[] for _ in texts]
             processed_embeddings = []
             for idx, embedding in enumerate(embeddings_list):
-                logger.debug(f"Raw embedding for text {idx}: {embedding}")
+                # logger.debug(f"Raw embedding for text {idx}: {embedding}")
                 if isinstance(embedding, np.ndarray):
                     embedding = embedding.astype(float).tolist()
                 elif isinstance(embedding, (list, tuple)):

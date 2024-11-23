@@ -515,7 +515,7 @@ def extract_appendix_doc_name(segment_text):
     ]
 
     # Compile boilerplate regex
-    boilerplate_regex = re.compile("|".join(boilerplate_phrases), re.IGNORECASE)
+    boilerplate_regex = re.compile("|".join(boilerplate_phrases), re.IGNORECASE | re.UNICODE)
 
     # Remove boilerplate phrases from the segment text completely
     cleaned_text = boilerplate_regex.sub("", cleaned_text)
@@ -1227,7 +1227,7 @@ def detect_forms_in_appendix(segment_text):
 # ----------------------------
 
 
-if __name__ == "__main__":
+""" if __name__ == "__main__":
     # Example file paths (Adjust these paths accordingly)
     raw_file = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.4.2. 122_2020_TT-BTC_converted_with_appendix.docx'        # Replace with your raw file path
     output_json = r'format_service\src\data\raw\1. DOANH NGHIỆP\1.4.2. 122_2020_TT-BTC_converted_with_appendix.json'      # Replace with your desired JSON output path
@@ -1249,4 +1249,23 @@ if __name__ == "__main__":
             f.write(full_text)
         print(f"Reconstructed text has been written to '{reconstructed_text_path}'")
     else:
-        print("No text was reconstructed.")
+        print("No text was reconstructed.") """
+
+
+input_folder=r'C:\Users\PC\git\legal_qa_rag\format_service\src\data\raw'
+output_folder=r'C:\Users\PC\git\legal_qa_rag\format_service\src\data\preprocessed'
+
+
+if __name__ == "__main__":
+    # process the whole folder
+    process_folder(input_folder, output_folder)
+
+    # find a section by id
+    section_id ="01/2021/TT-BKHĐT_appendix_101"
+    section_text = retrieve_section_text_from_folder(section_id,output_folder)
+
+    if section_text:
+        print("Reconstructed Text for Section ID:", section_id)
+        print(section_text)
+    else:
+        print(f"No text found for section id: {section_id}")

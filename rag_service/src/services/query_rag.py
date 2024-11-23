@@ -223,7 +223,7 @@ async def main():
     import sys
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from models.query_model import QueryModel  
-    query_text = "Can I establish a joint-stock company with charter capital under 1 billion VND?"
+    query_text = "có bao nhiêu loại công ty trách nhiệm hữu hạn"
     query_item = QueryModel(query_text=query_text)
 
     # Since query_rag is an async function, we need to await its result.

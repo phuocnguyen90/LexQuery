@@ -96,12 +96,26 @@ class RecordProcessor:
         except Exception as e:
             logger.error(f"Error parsing text into Record object: {e}")
             return None
-def generate_unique_id(prefix: str = "REC") -> str:
-    """
-    Generate a unique ID for records without an existing ID.
 
-    :param prefix: Prefix for the unique ID (e.g., "QA", "DOC", "REC").
+import hashlib
+
+def generate_unique_id(title: str, content: str, prefix: str = "REC") -> str:
+    """
+    Generate a unique ID based on content and title to ensure consistency.
+
+    :param title: Title of the record.
+    :param content: Content of the record.
+    :param prefix: Prefix for the unique ID.
     :return: A unique ID string.
     """
-    unique_part = uuid.uuid4().hex[:8].upper()
+    # Concatenate the title and content
+    combined_string = f"{title}|{content}"
+    
+    # Generate a SHA-256 hash of the combined string
+    hash_object = hashlib.sha256(combined_string.encode('utf-8'))
+    
+    # Get the first 8 characters of the hexadecimal representation of the hash
+    unique_part = hash_object.hexdigest()[:8].upper()
+    
+    # Return the unique ID with the prefix
     return f"{prefix}_{unique_part}"
