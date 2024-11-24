@@ -171,3 +171,4 @@ samconfig.toml
 .vscode
 localstack
 localstack-setup.sh
+format_service/src/data/raw
