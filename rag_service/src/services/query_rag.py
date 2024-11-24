@@ -50,7 +50,78 @@ class QueryResponse(BaseModel):
 
 DEVELOPMENT_MODE = True  # Enable this flag to include retrieved_docs in the response
 
-DEVELOPMENT_MODE = True  # Enable this flag to include retrieved_docs in the response
+import re
+from typing import Optional
+
+def reconstruct_source(source_id: str) -> str:
+    """
+    Reconstruct a readable source string from a source_id.
+
+    Rules:
+    - Ignore 'ch' (chapter) if present.
+    - 'art' is followed by a number without hyphen (e.g., 'art002' -> 'Điều 2').
+    - 'cl_' is followed by a number (e.g., 'cl_12' -> 'khoản 12').
+    - 'pt_' is followed by a label (e.g., 'pt_a' -> 'điểm a').
+
+    :param source_id: The source ID to reconstruct.
+    :return: A human-readable string describing the source.
+    """
+    try:
+        # Initialize variables
+        article = None
+        clause = None
+        point = None
+
+        # Patterns to match 'art', 'cl_', and 'pt_'
+        art_pattern = re.compile(r'art(\d+)', re.IGNORECASE)
+        cl_pattern = re.compile(r'cl_(\d+)', re.IGNORECASE)
+        pt_pattern = re.compile(r'pt_(\w+)', re.IGNORECASE)
+
+        # Search for patterns
+        art_match = art_pattern.search(source_id)
+        cl_match = cl_pattern.search(source_id)
+        pt_match = pt_pattern.search(source_id)
+
+        # Extract base document (everything before the first '_')
+        base_document = source_id.split('_')[0]
+
+        # Extract article number
+        if art_match:
+            article_number = int(art_match.group(1))
+            article = f"Điều {article_number}"
+
+        # Extract clause number
+        if cl_match:
+            clause_number = int(cl_match.group(1))
+            clause = f"khoản {clause_number}"
+
+        # Extract point label
+        if pt_match:
+            point_label = pt_match.group(1)
+            point = f"điểm {point_label}"
+
+        # Assemble the reconstructed source
+        reconstructed_parts = []
+        if clause:
+            reconstructed_parts.append(clause)
+        if article:
+            reconstructed_parts.append(article)
+        if point:
+            reconstructed_parts.append(point)
+
+        # Combine parts with base document
+        if reconstructed_parts:
+            reconstructed_source = f"{', '.join(reconstructed_parts)} văn bản {base_document}"
+        else:
+            # If no article, clause, or point found, just return the base document
+            reconstructed_source = f"văn bản {base_document}"
+
+        return reconstructed_source
+
+    except Exception as e:
+        logger.error(f"Failed to reconstruct source from source_id '{source_id}': {e}")
+        return "Unknown Source"
+
 
 async def query_rag(
     query_item,
@@ -118,6 +189,11 @@ async def query_rag(
     # Retrieve similar documents using Qdrant
     logger.debug(f"Retrieving documents related to query: '{query_text}'")
     retrieved_docs = await search_qdrant(embedding_vector, top_k=6)
+    # Reconstruct sources for documents where source is None
+    for doc in retrieved_docs:
+        if not doc.get("source"):
+            doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
+
     if not retrieved_docs:
         logger.warning(f"No relevant documents found for query: '{query_text}'")
         response_text = "Không tìm thấy dữ liệu liên quan."
@@ -125,11 +201,13 @@ async def query_rag(
     else:
         # Combine retrieved documents to form context for LLM
         context = "\n\n---------------------------\n\n".join([
-            f"Record ID: {doc.get('record_id', 'N/A')}\n"
+            
             f"Document ID: {doc.get('document_id', 'N/A')}\n"
-            f"Title: {doc.get('title', 'N/A')}\n"
+            f"Cơ sở pháp lý: {doc.get('source', 'N/A')}\n"
+            f"Mô tả: {doc.get('title', 'N/A')}\n"           
+            f"Nội dung: {doc.get('content', 'No content available.')}\n"
+            f"Record ID: {doc.get('record_id', 'N/A')}\n"
             f"Chunk ID: {doc.get('chunk_id', 'N/A')}\n"
-            f"Content: {doc.get('content', 'No content available.')}"
             for doc in retrieved_docs if doc.get('content')
         ])
 
