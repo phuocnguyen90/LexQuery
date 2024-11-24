@@ -174,6 +174,7 @@ class LocalEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['local'] = 'local'
     embedding_model_name: str = Field(..., description="Local model name.")
     cache_dir: str = Field(..., description="Directory to cache models.")
+    vector_dimension: Optional[int] = Field(None, description="Vector dimension for local models")
 
 class OpenAIEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['openai_embedding'] = 'openai_embedding'

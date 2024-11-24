@@ -3,26 +3,35 @@
 from typing import Callable, List, Optional, Awaitable
 from shared_libs.utils.logger import Logger
 import httpx
+import asyncio
 from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.embedding_config import EmbeddingConfig
+from shared_libs.embeddings.embedder_factory import EmbedderFactory
 
 config=AppConfigLoader()
+embedding_config=EmbeddingConfig.from_config_loader()
 
 logger = Logger.get_logger(module_name=__name__)
 
 async def local_embed(query: str) -> Optional[List[float]]:
     """
-    Temporary local embedding function for development purposes.
-    Replace this with a proper embedding model as needed.
+    Embedding function using the LocalEmbedder class.
     
     :param query: The input text to embed.
-    :return: The embedding vector as a list of floats.
+    :return: The embedding vector as a list of floats, or None if failed.
     """
     try:
-        import fastembed
-        model = fastembed.TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
-        embedding = model.embed(query).tolist()
-        logger.debug(f"Local embedding generated for query: '{query}'")
-        return embedding
+        local_embedder = EmbedderFactory.create_embedder(embedding_config.library_providers['local'])
+
+        loop = asyncio.get_running_loop()
+        # Run the synchronous embed method in a thread pool executor
+        embedding = await loop.run_in_executor(None, local_embedder.embed, query)
+        if embedding:
+            logger.debug(f"Local embedding generated for query: '{query}'")
+            return embedding
+        else:
+            logger.error(f"No embedding generated for query: '{query}'")
+            return None
     except Exception as e:
         logger.error(f"Local embedding failed for query '{query}': {e}")
         return None
@@ -67,7 +76,7 @@ def get_embedding_function() -> Callable[[str], Awaitable[Optional[List[float]]]
     
     :return: An async function that takes a string and returns its embedding vector.
     """
-    EMBEDDING_MODE = config.get("embedding.mode", "api").lower()
+    EMBEDDING_MODE = config.get("embedding.mode", "local").lower()
     
     if EMBEDDING_MODE == "local":
         logger.info("Using local embedding function.")

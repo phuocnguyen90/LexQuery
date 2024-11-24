@@ -4,9 +4,9 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  provider: "ec2"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
-  mode: "api" # Options for embedding calling from query_rag() method: local or API
-  api_service_url: "http://54.174.232.98:8000/embed"
+  provider: "local"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
+  mode: "local" # Options for embedding calling from query_rag() method: local or API
+  api_service_url: "http://54.174.232.98:8000/embed" # Current API url for EC2 instance embedding server
   # API Endpoint-based Embedding Providers
   api_providers:
     # docker:
@@ -18,26 +18,33 @@ embedding:
     bedrock:
       model_name: "amazon.titan-embed-text-v2:0"
       region_name: "us-east-1"
+      vector_dimension: 1024
+      
 
     openai_embedding:
       service_url: "https://api.openai.com/v1/embeddings"
       api_key: "${OPENAI_API_KEY}"
-      model_name: "text-embedding-3-small"  
+      model_name: "text-embedding-3-small"
+      vector_dimension: 1536  
 
     google_gemini_embedding:
       api_key: "${GEMINI_API_KEY}"
       model_name: "text-multilingual-embedding-002"  
+      vector_dimension: 768  
 
     ollama_embedding:
       service_url: "http://localhost:11434/embed"
       api_key: "ollama"  
       model_name: "nomic-embed-text"
+      vector_dimension: 768 
 
   # Library Function-based Embedding Providers
   library_providers:
     local:
       model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
       cache_dir: "/app/models"
+      vector_dimension: 384
+
 
 
 
@@ -84,7 +91,8 @@ llm:
 qdrant:
   api_key: "${QDRANT_API_KEY}"
   url: "${QDRANT_URL}"
-  collection_name: "legal_qa"
+  QA_COLLECTION_NAME: "legal_qa"
+  DOC_COLLECTION_NAME: "legal_doc"
 
 processing:
   input_file: "src/data/raw/input.txt"

@@ -9,6 +9,7 @@ import pandas as pd
 import tempfile
 import zipfile
 import subprocess
+
 from docx import Document
 from docxcompose.composer import Composer
 from shared_libs.models.record_model import Record
@@ -297,17 +298,29 @@ def create_documents_dataframe(base_folder):
     df = pd.DataFrame(documents_data)
     return df
 
-def generate_unique_id(prefix: str = "REC") -> str:
+
+import hashlib
+
+def generate_unique_id(title: str, content: str, prefix: str = "REC") -> str:
     """
-    Generate a unique ID for records without an existing ID.
-    
+    Generate a unique ID based on content and title to ensure consistency.
+
+    :param title: Title of the record.
+    :param content: Content of the record.
     :param prefix: Prefix for the unique ID.
     :return: A unique ID string.
     """
-    import uuid
-    unique_part = uuid.uuid4().hex[:8].upper()
+    # Concatenate the title and content
+    combined_string = f"{title}|{content}"
+    
+    # Generate a SHA-256 hash of the combined string
+    hash_object = hashlib.sha256(combined_string.encode('utf-8'))
+    
+    # Get the first 8 characters of the hexadecimal representation of the hash
+    unique_part = hash_object.hexdigest()[:8].upper()
+    
+    # Return the unique ID with the prefix
     return f"{prefix}_{unique_part}"
-
 
 
 
@@ -396,3 +409,167 @@ def output_2_jsonl(file_path: str, records: Union[Dict[str, Any], List[Union[Dic
 
     except Exception as e:
         logger.error(f"An error occurred in output_to_jsonl: {e}")
+
+
+def extract_text_from_txt(file_path):
+    """
+    Extracts text from a .txt file.
+    
+    Args:
+        file_path (str): Path to the .txt file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        logger.info(f"Extracted text from TXT file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading TXT file {file_path}: {e}")
+        return ""
+
+def extract_text_from_docx(file_path):
+    """
+    Extracts text from a .docx file, including text inside tables,
+    preserving the order of paragraphs and tables as in the original document,
+    and ensuring each table cell is on its own line.
+
+    Args:
+        file_path (str): Path to the .docx file.
+
+    Returns:
+        str: Extracted text.
+    """
+    import docx
+    try:
+        doc = docx.Document(file_path)
+        full_text = []
+
+        for block in iter_block_items(doc):
+            if isinstance(block, docx.text.paragraph.Paragraph):
+                if block.text.strip():
+                    full_text.append(block.text.strip())
+            elif isinstance(block, docx.table.Table):
+                # Extract text from table
+                full_text.append("<table>")
+                for row in block.rows:
+                    full_text.append("<tr>")
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            # Add each cell content as a separate line
+                            full_text.append(f"<td>{cell_text}</td>")
+                    full_text.append("</tr>")
+                full_text.append("</table>")
+
+        text = '\n'.join(full_text)
+        logger.info(f"Extracted text from DOCX file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading DOCX file {file_path}: {e}")
+        return ""
+
+
+def iter_block_items(parent):
+    """
+    Generate a reference to each paragraph and table child within parent, in document order.
+
+    Args:
+        parent: The parent document or element.
+
+    Yields:
+        Each child paragraph and table in document order.
+    """
+    import docx
+    from docx.oxml.ns import qn
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.table import CT_Tbl
+    from docx.table import _Cell, Table
+    from docx.text.paragraph import Paragraph
+
+    if isinstance(parent, docx.document.Document):
+        parent_element = parent.element.body
+    elif isinstance(parent, _Cell):
+        parent_element = parent._tc
+    else:
+        raise ValueError("Invalid parent type")
+
+    for child in parent_element.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
+
+def extract_text_from_pdf(file_path):
+    """
+    Extracts text from a .pdf file.
+    
+    Args:
+        file_path (str): Path to the .pdf file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    import PyPDF2
+
+    try:
+        reader = PyPDF2.PdfReader(file_path)
+        text = ""
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + '\n'
+        logger.info(f"Extracted text from PDF file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading PDF file {file_path}: {e}")
+        return ""
+
+def extract_text_from_html(file_path):
+    """
+    Extracts text from a .html file.
+    
+    Args:
+        file_path (str): Path to the .html file.
+        
+    Returns:
+        str: Extracted text.
+    """
+    from bs4 import BeautifulSoup
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            soup = BeautifulSoup(f, 'lxml')
+        text = soup.get_text(separator='\n')
+        logger.info(f"Extracted text from HTML file: {file_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error reading HTML file {file_path}: {e}")
+        return ""
+
+def determine_file_type(file_path):
+    """
+    Determines the file type based on its extension.
+    
+    Args:
+        file_path (str): Path to the file.
+        
+    Returns:
+        str: File type ('txt', 'docx', 'pdf', 'html') or 'unsupported'.
+    """
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    if ext == '.txt':
+        return 'txt'
+    elif ext == '.docx':
+        return 'docx'
+    elif ext == '.pdf':
+        return 'pdf'
+    elif ext in ['.html', '.htm']:
+        return 'html'
+    else:
+        return 'unsupported'

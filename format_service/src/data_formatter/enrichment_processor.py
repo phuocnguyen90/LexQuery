@@ -4,10 +4,10 @@ import pandas as pd
 import logging
 import json
 from typing import List, Dict, Any, Optional
-from utils.validation import validate_record
-from utils.file_handler import read_file_content
-from utils.llm_formatter import LLMFormatter
-from utils.record import Record
+from validation import validate_record
+from shared_libs.utils.file_handler import read_file_content
+from llm_formatter import LLMFormatter
+from shared_libs.models.record_model import Record
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
