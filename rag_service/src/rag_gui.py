@@ -1,6 +1,6 @@
 import asyncio
 import streamlit as st
-from rag_service.src.services.deprecated.query_rag_v1 import query_rag  
+from services.query_rag import query_rag
 from models.query_model import QueryModel  
 
 
@@ -31,8 +31,9 @@ def main():
 
 # Asynchronous function to execute the RAG query
 async def run_query(query_text: str, debug_mode: bool) -> dict:
+    conversation_history=[]
     query_item = QueryModel(query_text=query_text)
-    response_data = await query_rag(query_item=query_item)
+    response_data = await query_rag(query_item=query_item,conversation_history=conversation_history)
     if debug_mode:
         st.session_state["debug_prompt"] = response_data.get("debug_prompt", None)
         st.session_state["retrieved_docs"] = response_data.get("retrieved_docs", [])

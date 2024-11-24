@@ -14,8 +14,10 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 try:
+    from search_qdrant import search_qdrant, reconstruct_source
     from get_embedding_function import get_embedding_function
 except:
+    from services.search_qdrant import search_qdrant, reconstruct_source
     from services.get_embedding_function import get_embedding_function
 
 # Imports from shared_libs
@@ -91,7 +93,7 @@ async def retrieve_documents(embedding_vector: np.ndarray, top_k: int = 6) -> Li
     """
     Retrieve similar documents using Qdrant.
     """
-    from services.search_qdrant import search_qdrant
+    
     try:
         retrieved_docs = await search_qdrant(embedding_vector, top_k=top_k)
         return retrieved_docs
@@ -104,7 +106,7 @@ async def paraphrase_query(query_text: str, provider: Any) -> Optional[str]:
     Paraphrase the query using the LLM provider.
     """
     try:
-        paraphrase_prompt = f"Paraphrase the following query to improve search results:\n\n{query_text}"
+        paraphrase_prompt = f"Viết lại câu hỏi sau đây sử dụng ngôn ngữ, thuật ngữ pháp lý:\n\n{query_text}"
         paraphrased_query = await provider.send_single_message(prompt=paraphrase_prompt)
         return paraphrased_query.strip()
     except Exception as e:
@@ -198,8 +200,8 @@ async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], pro
     message_payload = {
         "messages": messages
     }
-
-    logger.debug(f"Message payload being sent: {json.dumps(message_payload, indent=2)}")
+    # DEBUG
+    # logger.debug(f"Message payload being sent: {json.dumps(message_payload, indent=2)}")
 
     # Generate response using the LLM provider
     try:
@@ -209,74 +211,6 @@ async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], pro
         logger.error(f"Failed to generate a response using the provider for query: '{query_text}'. Error: {str(e)}")
         return "An error occurred while generating the answer."
 
-def reconstruct_source(source_id: str) -> str:
-    """
-    Reconstruct a readable source string from a source_id.
-
-    Rules:
-    - Ignore 'ch' (chapter) if present.
-    - 'art' is followed by a number without hyphen (e.g., 'art002' -> 'Điều 2').
-    - 'cl_' is followed by a number (e.g., 'cl_12' -> 'khoản 12').
-    - 'pt_' is followed by a label (e.g., 'pt_a' -> 'điểm a').
-
-    :param source_id: The source ID to reconstruct.
-    :return: A human-readable string describing the source.
-    """
-    try:
-        # Initialize variables
-        article = None
-        clause = None
-        point = None
-
-        # Patterns to match 'art', 'cl_', and 'pt_'
-        art_pattern = re.compile(r'art(\d+)', re.IGNORECASE)
-        cl_pattern = re.compile(r'cl_(\d+)', re.IGNORECASE)
-        pt_pattern = re.compile(r'pt_(\w+)', re.IGNORECASE)
-
-        # Search for patterns
-        art_match = art_pattern.search(source_id)
-        cl_match = cl_pattern.search(source_id)
-        pt_match = pt_pattern.search(source_id)
-
-        # Extract base document (everything before the first '_')
-        base_document = source_id.split('_')[0]
-
-        # Extract article number
-        if art_match:
-            article_number = int(art_match.group(1))
-            article = f"Điều {article_number}"
-
-        # Extract clause number
-        if cl_match:
-            clause_number = int(cl_match.group(1))
-            clause = f"khoản {clause_number}"
-
-        # Extract point label
-        if pt_match:
-            point_label = pt_match.group(1)
-            point = f"điểm {point_label}"
-
-        # Assemble the reconstructed source
-        reconstructed_parts = []
-        if clause:
-            reconstructed_parts.append(clause)
-        if article:
-            reconstructed_parts.append(article)
-        if point:
-            reconstructed_parts.append(point)
-
-        # Combine parts with base document
-        if reconstructed_parts:
-            reconstructed_source = f"{', '.join(reconstructed_parts)} văn bản {base_document}"
-        else:
-            # If no article, clause, or point found, just return the base document
-            reconstructed_source = f"văn bản {base_document}"
-
-        return reconstructed_source
-
-    except Exception as e:
-        logger.error(f"Failed to reconstruct source from source_id '{source_id}': {e}")
-        return "Unknown Source"
 
 
 def create_final_response(query_text: str, response_text: str, retrieved_docs: List[Dict]) -> QueryResponse:
@@ -303,13 +237,13 @@ def create_final_response(query_text: str, response_text: str, retrieved_docs: L
 
 async def query_rag(
     query_item,
-    conversation_history,
+    conversation_history: Optional[List],
     provider: Optional[Any] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Perform Retrieval-Augmented Generation (RAG) to answer the user's query.
+    Perform Retrieval-Augmented Generation (RAG) to answer the user's query by searching both QA and DOC collections.
     """
     query_text = query_item.query_text
 
@@ -324,7 +258,6 @@ async def query_rag(
 
     # Generate embedding vector for the query
     embedding_vector = await generate_embedding(query_text, embedding_function)
-
     if embedding_vector is None:
         # Return an error response
         return {
@@ -337,27 +270,23 @@ async def query_rag(
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
-    # Retrieve documents
-    retrieved_docs = await retrieve_documents(embedding_vector, top_k=6)
+    # Retrieve documents from QA and DOC collections
+    QA_COLLECTION_NAME=os.getenv("QA_COLLECTION_NAME", "legal_qa")
+    DOC_COLLECTION_NAME=os.getenv("DOC_COLLECTION_NAME", "legal_doc")
+    qa_docs = await search_qdrant(embedding_vector, collection_name=QA_COLLECTION_NAME, top_k=3)
+    doc_chunks = await search_qdrant(embedding_vector, collection_name=DOC_COLLECTION_NAME, top_k=6)
 
-    # If no documents found, try paraphrasing the query
-    if not retrieved_docs:
-        paraphrased_query = await paraphrase_query(query_text, provider)
-        if paraphrased_query:
-            # Generate embedding for paraphrased query
-            embedding_vector = await generate_embedding(paraphrased_query, embedding_function)
-            if embedding_vector:
-                retrieved_docs = await retrieve_documents(embedding_vector, top_k=6)
+    # Combine the results
+    all_retrieved_docs = qa_docs + doc_chunks
 
-    # If still no documents, return no data found
-    if not retrieved_docs:
+    # If no documents are found, handle as no data
+    if not all_retrieved_docs:
         logger.warning(f"No relevant documents found for query: '{query_text}'")
         response_text = "Không tìm thấy dữ liệu liên quan."
-        sources = []
         query_response = QueryResponse(
             query_text=query_text,
             response_text=response_text,
-            sources=sources,
+            sources=[],
             timestamp=int(time.time())
         )
         return {
@@ -365,22 +294,21 @@ async def query_rag(
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
-    # Reconstruct sources
-    reconstruct_sources(retrieved_docs)
-
-    # Rerank documents (optional)
-    # retrieved_docs = await rerank_documents(retrieved_docs, query_text, provider)
+    # Reconstruct sources for DOC collection results only
+    for doc in doc_chunks:
+        if not doc.get("source"):
+            doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
 
     # Generate LLM response
-    response_text = await generate_llm_response(query_text, retrieved_docs, provider)
+    response_text = await generate_llm_response(query_text, all_retrieved_docs, provider)
 
-    # Create final response
-    query_response = create_final_response(query_text, response_text, retrieved_docs)
+    # Create the final response
+    query_response = create_final_response(query_text, response_text, all_retrieved_docs)
 
     # Return response
     return {
         "query_response": query_response,
-        "retrieved_docs": retrieved_docs if DEVELOPMENT_MODE else None,
+        "retrieved_docs": all_retrieved_docs if DEVELOPMENT_MODE else None,
         "debug_prompt": None  # Include raw prompt if necessary
     }
 

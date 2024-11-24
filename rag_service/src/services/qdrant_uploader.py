@@ -59,7 +59,7 @@ def add_record_to_qdrant(record: Record, local: bool = True):
 
         # Upload to Qdrant
         qdrant_client.upsert(
-            QA_COLLECTION_NAME=QA_COLLECTION_NAME,
+            collection_name=QA_COLLECTION_NAME,
             points=[
                 qdrant_models.PointStruct(
                     id=record.record_id,
@@ -99,7 +99,7 @@ def add_records_to_qdrant(records: List[Record], local: bool = True):
     if points:
         try:
             qdrant_client.upsert(
-                QA_COLLECTION_NAME=QA_COLLECTION_NAME,
+                collection_name=QA_COLLECTION_NAME,
                 points=points
             )
             logger.info(f"Successfully added {len(points)} records to Qdrant collection '{QA_COLLECTION_NAME}'.")
@@ -178,11 +178,10 @@ def get_existing_record_ids(record_ids: List[str]) -> List[str]:
                         key="record_id",
                         match=qdrant_models.MatchValue(value=record_id)
                     ) for record_id in batch
-                ],
-                minimum_should_match=1
+                ]
             )
             response = qdrant_client.scroll(
-                QA_COLLECTION_NAME=QA_COLLECTION_NAME,
+                collection_name=QA_COLLECTION_NAME,
                 filter=filter,
                 limit=len(batch)  # Number of records expected
             )
@@ -195,7 +194,7 @@ def get_existing_record_ids(record_ids: List[str]) -> List[str]:
         logger.error(f"Failed to retrieve existing record IDs from Qdrant: {e}")
     return existing_ids
 
-def add_records_from_jsonl(file_path: str, batch_size: int = 100):
+def add_records_from_jsonl(file_path: str, batch_size: int = 100, local:bool=True):
     """
     Add records from a JSONL file to Qdrant in batches, avoiding overwriting existing records.
 
@@ -240,7 +239,7 @@ def add_records_from_jsonl(file_path: str, batch_size: int = 100):
             records_with_embeddings.append(record)
 
         # Use the existing batch upload method
-        add_records_to_qdrant(records_with_embeddings)
+        add_records_to_qdrant(records_with_embeddings,local)
         total_uploaded += len(records_with_embeddings)
 
         logger.info(f"Batch {batch_number}: Uploaded {len(records_with_embeddings)} records. Skipped {skipped} existing records.")
@@ -271,7 +270,7 @@ if __name__ == "__main__":
     import os
 
     # Default values for testing in VS Code
-    file_path = r"format_service/src/data/preprocessed/preprocessed_data.jsonl" 
+    file_path = r"C:\Users\PC\git\legal_qa_rag\format_service\src\data\raw\preprocessed_data.jsonl" 
     batch_size = 100
     use_local = True  # Set to False if you want to use a remote Qdrant server
 
@@ -295,7 +294,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Reinitialize the Qdrant client based on the `use_local` argument
-    qdrant_client = initialize_qdrant(local=use_local)
+    qdrant_client = initialize_qdrant(use_local)
 
     # Add records to Qdrant
-    add_records_from_jsonl(file_path, batch_size=batch_size)
+    add_records_from_jsonl(file_path, batch_size=batch_size,local=use_local)

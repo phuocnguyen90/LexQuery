@@ -50,5 +50,5 @@ def reset_collection(collection_name: str):
 
 # Example usage
 if __name__ == "__main__":
-    collection_name = "legal_qa"  # Replace with your collection name
+    collection_name = "legal_doc"  # Replace with your collection name
     reset_collection(collection_name)

@@ -3,11 +3,11 @@
 import logging
 import asyncio
 from typing import Optional, List, Dict, Any
-from groq import Groq
+
 import httpx
 from functools import partial
 from .llm_provider import LLMProvider
-import json
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -97,7 +97,12 @@ class GroqProvider(LLMProvider):
                 raise
 
 
-    async def send_multi_turn_message(self, conversation_history: List[Dict[str, str]], prompt: str, stop_sequence: Optional[List[str]] = None) -> Optional[str]:
+    async def send_multi_turn_message(
+        self,
+        conversation_history: List[Dict[str, str]],
+        prompt: str,
+        stop_sequence: Optional[List[str]] = None
+    ) -> Optional[str]:
         """
         Asynchronously send a multi-turn conversation to the Groq API, including conversation history.
 
@@ -106,78 +111,39 @@ class GroqProvider(LLMProvider):
         :param stop_sequence: Optional list of stop sequences to terminate the LLM response.
         :return: The response content from Groq or None if the call fails.
         """
-        loop = asyncio.get_event_loop()
         try:
             # Append the current prompt to the conversation history
             conversation_history.append({"role": "user", "content": prompt})
 
             logger.debug(f"Sending the following conversation history to Groq API: {conversation_history}")
 
-            # Run the blocking API call in a thread pool
-            response = await loop.run_in_executor(
-                None,
-                partial(
-                    self.client.chat.completions.create,
-                    model=self.model_name,
-                    messages=conversation_history,
-                    temperature=self.temperature,
-                    max_tokens=self.max_output_tokens,
-                    stop=stop_sequence
-                )
-            )
+            # Construct the message payload
+            message_payload = {
+                "messages": conversation_history
+            }
+
+            if stop_sequence:
+                message_payload["stop"] = stop_sequence
+
+            # Log the payload being sent (excluding sensitive information)
+            logger.debug(f"Message payload being sent to Groq API: {json.dumps(message_payload, indent=2)}")
+
+            # Send the message_payload using the send_single_message method
+            response = await self.send_single_message(message_payload=message_payload)
 
             logger.debug("Received response from Groq API.")
 
-            if not response or not hasattr(response, 'choices') or not response.choices:
-                logger.error("Invalid or empty response structure from Groq API.")
-                return None
-
-            content = response.choices[0].message.content.strip()
-            if not content:
-                logger.error("Empty content received in the response from Groq API.")
+            if not response:
+                logger.error("Invalid or empty response from Groq API.")
                 return None
 
             # Append the assistant's response to the conversation history
-            conversation_history.append({"role": "assistant", "content": content})
+            conversation_history.append({"role": "assistant", "content": response})
 
-            logger.debug(f"Content received: {content}")
+            logger.debug(f"Content received: {response}")
 
-            return content
+            return response
 
         except Exception as e:
             logger.error(f"Error during Groq API call: {e}")
-            return None
-
-    async def create_embedding(self, text: str) -> Optional[List[float]]:
-        """
-        Asynchronously create an embedding for the given text using the Groq embedding model.
-
-        :param text: The input text to create an embedding for.
-        :return: A list representing the embedding vector or None if the call fails.
-        """
-        loop = asyncio.get_event_loop()
-        try:
-            logger.debug("Sending request to Groq API for embedding.")
-            # Run the blocking API call in a thread pool
-            response = await loop.run_in_executor(
-                None,
-                partial(
-                    self.client.embeddings.create,
-                    model=self.embedding_model_name,
-                    input=text
-                )
-            )
-            logger.debug("Received response from Groq API for embedding.")
-
-            if not response or 'data' not in response or len(response['data']) == 0:
-                logger.error("Invalid or empty response structure from Groq embedding API.")
-                return None
-
-            embedding = response['data'][0]['embedding']
-            logger.debug(f"Embedding received: {embedding}")
-
-            return embedding
-
-        except Exception as e:
-            logger.error(f"Error during Groq API embedding call: {e}")
             return None

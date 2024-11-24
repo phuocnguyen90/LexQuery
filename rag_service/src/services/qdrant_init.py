@@ -45,6 +45,7 @@ def initialize_qdrant(local: bool = True):
             logger.error("QDRANT_API_KEY and QDRANT_URL must be set for remote server.")
             exit(1)
         client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, prefer_grpc=True)
+        logger.info("Using remote Qdrant server.")
 
     # Get vector size from embedder
     vector_size = embedding_function.vector_size()
@@ -52,10 +53,10 @@ def initialize_qdrant(local: bool = True):
     try:
         # Check if the collection already exists
         client.get_collection(QA_COLLECTION_NAME) 
-        logger.info(f"Collection '{QA_COLLECTION_NAME}' already exists.")
+        logger.debug(f"Collection '{QA_COLLECTION_NAME}' already exists.")
     except UnexpectedResponse:
         # If the collection does not exist, create it
-        logger.info(f"Collection '{QA_COLLECTION_NAME}' not found. Creating it now.")
+        logger.debug(f"Collection '{QA_COLLECTION_NAME}' not found. Creating it now.")
         client.create_collection(
             QA_COLLECTION_NAME=QA_COLLECTION_NAME,
             vectors_config=VectorParams(
