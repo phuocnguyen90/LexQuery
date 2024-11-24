@@ -185,7 +185,7 @@ def process_folder_to_jsonl(input_folder: str, output_jsonl_path: str):
 
     print(f"All records have been saved to: {output_jsonl_path}")
 
-input_folder=r'format_service\src\data\preprocessed\simplified'
+input_folder=r'C:\Users\PC\git\legal_qa_rag\format_service\src\data\preprocessed\simplified'
 output_jsonl_file=r'format_service\src\data\preprocessed\preprocessed_data.jsonl'
 
 

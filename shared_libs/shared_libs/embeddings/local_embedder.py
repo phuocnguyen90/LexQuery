@@ -18,6 +18,7 @@ class LocalEmbedder(BaseEmbedder):
             model_name=config.model_name, 
         )
         logger.info(f"LocalEmbedder initialized with model '{config.model_name}'.")
+        self.vector_dimension = config.vector_dimension
 
     def embed(self, text: str) -> List[float]:
         """
@@ -75,3 +76,9 @@ class LocalEmbedder(BaseEmbedder):
         except Exception as e:
             logger.error(f"Error during batch embed: {e}")
             return [[] for _ in texts]
+
+    def vector_size(self) -> int:
+        """
+        Return the vector size from the configuration.
+        """
+        return self.vector_dimension

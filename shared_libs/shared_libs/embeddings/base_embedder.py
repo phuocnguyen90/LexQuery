@@ -11,11 +11,22 @@ class BaseEmbedder(ABC):
         :return: A list of floats representing the embedding.
         """
         pass
+
+    @abstractmethod
     def batch_embed(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate an embedding for the given text.
+        Generate embeddings for a batch of texts.
 
-        :param text: Input text string.
-        :return: A list of floats representing the embedding.
+        :param texts: List of input text strings.
+        :return: A list of lists of floats representing embeddings.
+        """
+        pass
+
+    @abstractmethod
+    def vector_size(self) -> int:
+        """
+        Get the size of the embedding vector.
+
+        :return: Size of the embedding vector.
         """
         pass

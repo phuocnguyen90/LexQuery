@@ -4,6 +4,8 @@ import uuid
 from typing import List,Iterator
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
+from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.models import Distance, VectorParams
 
 import boto3
 from botocore.exceptions import ClientError
@@ -27,60 +29,55 @@ logger = Logger.get_logger(module_name=__name__)
 qdrant_config = config.get("qdrant", {})
 QDRANT_API_KEY = qdrant_config.get("api_key")
 QDRANT_URL = qdrant_config.get("url")
-COLLECTION_NAME = 'legal_qa'
+QA_COLLECTION_NAME = 'legal_qa'
 
 # Set up Qdrant Client with Qdrant Cloud parameters
 if not QDRANT_API_KEY or not QDRANT_URL:
     logger.error("QDRANT_API_KEY and QDRANT_URL must be set.")
     exit(1)
 
-qdrant_client = QdrantClient(
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY,
-    prefer_grpc=True  # Optional, faster if using gRPC protocol, but make sure Qdrant Cloud supports it
-)
-
 # Initialize the embedding function using Bedrock
 embedding_function = EmbedderFactory.create_embedder(embedding_config.library_providers['local'])
 
-def add_record_to_qdrant(record: Record):
+from qdrant_init import initialize_qdrant
+# Initialize Qdrant client (default to local for development)
+qdrant_client = initialize_qdrant(local=True)
+
+def add_record_to_qdrant(record: Record, local: bool = True):
     """
     Add a single Record to Qdrant.
 
     :param record: Record object to be added.
+    :param local: Whether to use a local Qdrant server.
     """
     try:
-        # Use the embedding function to get the embedding
+        # Generate embedding
         embedding = embedding_function.embed(record.content)
         if not embedding:
             logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             return
 
-        # Use record_id directly as the point ID
-        record_id_str = record.record_id
-
         # Upload to Qdrant
         qdrant_client.upsert(
-            collection_name=COLLECTION_NAME,
+            QA_COLLECTION_NAME=QA_COLLECTION_NAME,
             points=[
                 qdrant_models.PointStruct(
-                    id=record_id_str,
+                    id=record.record_id,
                     vector=embedding,
-                    payload=record.to_dict()  # Utilize to_dict method from shared_libs Record
+                    payload=record.to_dict()
                 )
             ]
         )
-        logger.info(f"Successfully added record {record.record_id} to Qdrant collection '{COLLECTION_NAME}'.")
-    except ClientError as e:
-        logger.error(f"AWS ClientError while adding record {record.record_id} to Qdrant: {e}")
+        logger.info(f"Successfully added record {record.record_id} to Qdrant collection '{QA_COLLECTION_NAME}'.")
     except Exception as e:
         logger.error(f"Failed to add record {record.record_id} to Qdrant: {e}")
 
-def add_records_to_qdrant(records: List[Record]):
+def add_records_to_qdrant(records: List[Record], local: bool = True):
     """
     Batch add records to Qdrant.
 
     :param records: List of Record objects to be added.
+    :param local: Whether to use a local Qdrant server.
     """
     points = []
     for record in records:
@@ -89,25 +86,23 @@ def add_records_to_qdrant(records: List[Record]):
             logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             continue
 
-        # Generate a separate UUID for Qdrant point ID
+        # Generate a unique ID
         qdrant_uuid = str(uuid.uuid4())
 
         point = qdrant_models.PointStruct(
             id=qdrant_uuid,
             vector=embedding,
-            payload=record.to_dict()  # Utilize to_dict method from shared_libs Record
+            payload=record.to_dict()
         )
         points.append(point)
 
     if points:
         try:
             qdrant_client.upsert(
-                collection_name=COLLECTION_NAME,
+                QA_COLLECTION_NAME=QA_COLLECTION_NAME,
                 points=points
             )
-            logger.info(f"Successfully added {len(points)} records to Qdrant collection '{COLLECTION_NAME}'.")
-        except ClientError as e:
-            logger.error(f"AWS ClientError while adding records to Qdrant: {e}")
+            logger.info(f"Successfully added {len(points)} records to Qdrant collection '{QA_COLLECTION_NAME}'.")
         except Exception as e:
             logger.error(f"Failed to add records to Qdrant: {e}")
 
@@ -187,7 +182,7 @@ def get_existing_record_ids(record_ids: List[str]) -> List[str]:
                 minimum_should_match=1
             )
             response = qdrant_client.scroll(
-                collection_name=COLLECTION_NAME,
+                QA_COLLECTION_NAME=QA_COLLECTION_NAME,
                 filter=filter,
                 limit=len(batch)  # Number of records expected
             )
@@ -272,22 +267,35 @@ def validate_jsonl(file_path: str):
 
 
 if __name__ == "__main__":
-    import argparse
-    import os
     import sys
-    file_path=r'C:\Users\PC\git\legal_qa_rag\format_service\src\data\preprocessed\preprocessed_data.jsonl'
+    import os
 
-    parser = argparse.ArgumentParser(description="Upload records from a JSONL file to Qdrant.")
-    parser.add_argument("file_path", type=str, help="Path to the JSONL file.")
-    parser.add_argument("--batch_size", type=int, default=100, help="Number of records to process per batch.")
-    parser.add_argument("--validate", action="store_true", help="Validate the JSONL file before uploading.")
-    args = parser.parse_args()
+    # Default values for testing in VS Code
+    file_path = r"format_service/src/data/preprocessed/preprocessed_data.jsonl" 
+    batch_size = 100
+    use_local = True  # Set to False if you want to use a remote Qdrant server
 
-    if not os.path.isfile(args.file_path):
-        logger.error(f"File not found: {args.file_path}")
+    # Check if running in a terminal with command-line arguments
+    if len(sys.argv) > 1:
+        import argparse
+
+        parser = argparse.ArgumentParser(description="Upload records from a JSONL file to Qdrant.")
+        parser.add_argument("file_path", type=str, help="Path to the JSONL file.")
+        parser.add_argument("--batch_size", type=int, default=100, help="Number of records to process per batch.")
+        parser.add_argument("--local", action="store_true", help="Use a local Qdrant server for testing.")
+        args = parser.parse_args()
+
+        file_path = args.file_path
+        batch_size = args.batch_size
+        use_local = args.local
+
+    # Validate the file path
+    if not os.path.isfile(file_path):
+        logger.error(f"File not found: {file_path}")
         sys.exit(1)
-    if args.validate:
-        validate_jsonl(args.file_path)
 
+    # Reinitialize the Qdrant client based on the `use_local` argument
+    qdrant_client = initialize_qdrant(local=use_local)
 
-    add_records_from_jsonl(args.file_path, batch_size=args.batch_size)
+    # Add records to Qdrant
+    add_records_from_jsonl(file_path, batch_size=batch_size)

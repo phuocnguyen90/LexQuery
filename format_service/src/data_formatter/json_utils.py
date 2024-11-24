@@ -116,13 +116,16 @@ def generate_combined_structure(json_file_path, output_file_path):
     if not os.path.exists(json_file_path):
         raise FileNotFoundError(f"Input file not found: {json_file_path}")
 
+    # Load data
     with open(json_file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     simple_structure = {"doc_filename": data.get("doc_filename"), "documents": []}
-
     main_document = None
     appendices = []
+
+    # Load a pre-trained SentenceTransformer model for semantic similarity
+    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')  # Supports Vietnamese
 
     for document in data.get("documents", []):
         doc_number = document.get("doc_number")
@@ -137,22 +140,20 @@ def generate_combined_structure(json_file_path, output_file_path):
                 if not chapter.get("subsections"):
                     continue  # Skip if no subsections (no articles)
 
-                # Construct chapter text from header and content
                 chapter_header = chapter.get('header', '').strip()
-                chapter_content = chapter.get('content', '').strip()
                 chapter_title = chapter.get('title', '').strip()
-
                 articles = []
+
                 for article in chapter.get("subsections", []):
                     article_id = article.get("id")
                     article_header = f"{article.get('header', '').strip()} {chapter_header}".strip()
                     article_title = article.get('title', '').strip() or article.get('content', '').strip()
 
                     article_text = directly_reconstruct_text(article, include_full_hierarchy=False)
-                    article_word_count = count_words(article_text)
+                    article_word_count = len(article_text.split())
 
-                    if article_word_count < 300:
-                        # Keep the article as a single unit
+                    if article_word_count <= 600:
+                        # Keep article as a single unit
                         articles.append({
                             "article_id": article_id,
                             "content": article_text,
@@ -160,18 +161,17 @@ def generate_combined_structure(json_file_path, output_file_path):
                             "title": article_title
                         })
                     else:
-                        # Retain clauses for longer articles but inherit the article's title/content
-                        article_text = f"{article.get('header', '').strip()} {article_title}"
+                        # Attempt to split article by clauses
                         clauses = []
                         for clause in article.get("subsections", []):
                             clause_id = clause.get("id")
                             clause_header = f"{clause.get('header', '').strip()} {article_header}".strip()
-                            clause_title = article_title  # Always use article's title as clause title
+                            clause_title = article_title
 
                             clause_text = directly_reconstruct_text(clause, include_full_hierarchy=False)
-                            clause_word_count = count_words(clause_text)
+                            clause_word_count = len(clause_text.split())
 
-                            if clause_word_count < 300:
+                            if clause_word_count <= 300:
                                 clauses.append({
                                     "clause_id": clause_id,
                                     "content": clause_text,
@@ -179,37 +179,28 @@ def generate_combined_structure(json_file_path, output_file_path):
                                     "title": clause_title
                                 })
                             else:
-                                # Retain points for longer clauses but inherit the article's title/content
-                                clause_text = f"{clause.get('header', '').strip()} {clause_title}"
-                                points = []
-                                for point in clause.get("subsections", []):
-                                    point_id = point.get("id")
-                                    point_header = f"{point.get('header', '').strip()} {clause_header}".strip()
-                                    point_title = article_title  # Always use article's title as point title
-
-                                    point_text = directly_reconstruct_text(point, include_full_hierarchy=False)
-                                    points.append({
-                                        "point_id": point_id,
-                                        "content": point_text,
-                                        "header": point_header,
-                                        "title": point_title
-                                    })
-
+                                # Keep the entire point if it's >300 words
                                 clauses.append({
                                     "clause_id": clause_id,
                                     "content": clause_text,
                                     "header": clause_header,
-                                    "title": clause_title,
-                                    "points": points
+                                    "title": clause_title
                                 })
 
-                        articles.append({
-                            "article_id": article_id,
-                            "content": article_text,
-                            "header": article_header,
-                            "title": article_title,
-                            "clauses": clauses
-                        })
+                        # Split clauses further by semantic cohesion
+                        cohesive_chunks = split_by_semantic_cohesion(clauses, model)
+
+                        for chunk in cohesive_chunks:
+                            chunk_content = " ".join([clause["content"] for clause in chunk])
+                            chunk_word_count = len(chunk_content.split())
+                            chunk_header = f"{chunk[0]['header']}" if chunk else ""
+
+                            articles.append({
+                                "article_id": article_id,
+                                "content": chunk_content,
+                                "header": chunk_header,
+                                "title": article_title
+                            })
 
                 chapters.append({
                     "chapter_id": chapter.get("id"),
@@ -228,7 +219,6 @@ def generate_combined_structure(json_file_path, output_file_path):
             # Process appendices (flatten)
             appendix_content = flatten_appendix_content(document)
 
-            # Clean content and append
             appendices.append({
                 "appendix_id": doc_id,
                 "doc_name": doc_name,
@@ -241,12 +231,11 @@ def generate_combined_structure(json_file_path, output_file_path):
             main_document["appendices"] = appendices
         simple_structure["documents"].append(main_document)
 
-    # Save the simplified structure to a file
+    # Save the simplified structure
     with open(output_file_path, 'w', encoding='utf-8') as outfile:
         json.dump(simple_structure, outfile, ensure_ascii=False, indent=4)
 
     logger.debug(f"Simplified structure saved to: {output_file_path}")
-
 
 def flatten_appendix_content(document):
     """
@@ -338,8 +327,8 @@ def process_folder(input_folder, output_folder):
 
 
 
-input_folder=r'format_service\src\data\preprocessed'
-output_folder=r'format_service\src\data\preprocessed\simplified'
+input_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP'
+output_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP\simplified'
 
 
 if __name__ == "__main__":
