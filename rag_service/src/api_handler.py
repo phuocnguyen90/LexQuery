@@ -9,9 +9,11 @@ from pydantic import BaseModel
 from mangum import Mangum
 import uuid
 import asyncio
+import time
 from functools import partial
 from typing import List, Dict, Optional
 from hashlib import md5
+from services.intention_detector import IntentionDetector
 
 # Import from shared_libs
 from shared_libs.config.config_loader import AppConfigLoader
@@ -52,6 +54,9 @@ sqs_client = boto3.client(
     region_name=AWS_REGION,
     endpoint_url=endpoint_url
 )
+
+# Initialize IntentionDetector
+intention_detector = IntentionDetector()
 
 # Initialize FastAPI application
 app = FastAPI()
@@ -161,23 +166,23 @@ class LocalProcessor(Processor):
     async def process_query(self, query: QueryModel, conversation_history: List[Dict[str, str]], llm_provider_name: Optional[str] = None) -> Dict:
         try:
             logger.info(f"Processing query locally for query_id: {query.query_id}")
-            response = await query_rag(query, conversation_history=conversation_history, llm_provider_name=llm_provider_name)
-            # Update the query item with the response
-            query.answer_text = response.response_text
-            query.sources = response.sources
+
+            # Call the updated query_rag function
+            rag_response = await query_rag(query, conversation_history=conversation_history, llm_provider_name=llm_provider_name)
+
+            # Extract query_response and update the QueryModel
+            query_response = rag_response.get("query_response")
+            query.answer_text = query_response.response_text
+            query.sources = query_response.sources
             query.is_complete = True
-            query.timestamp = response.timestamp 
+            query.timestamp = query_response.timestamp
 
-            # Save the updated query_item to DynamoDB or cache
+            # Save the updated query item
             await query.update_item(query.query_id, query)
-            logger.info(f"Successfully processed query_id: {query.query_id} locally.")
 
-            return {
-                "query_id": query.query_id,
-                "response_text": query.answer_text,
-                "sources": query.sources,
-                "timestamp": query.timestamp
-            }
+            # Return the entire RAG response (including retrieved_docs and debug_prompt if DEVELOPMENT_MODE)
+            return rag_response
+
         except Exception as e:
             logger.error(f"Failed to process query locally: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to process query locally.")
@@ -214,20 +219,12 @@ async def get_query_endpoint(query_id: str):
     logger.warning(f"Query not found for ID: {query_id}")
     raise HTTPException(status_code=404, detail="Query not found")
 
+
 @app.post("/submit_query")
 async def submit_query_endpoint(request: SubmitQueryRequest):
     """
     Endpoint to submit a user query for processing.
-
-    In Production:
-        - Invokes the worker Lambda to process the query.
-        - Waits for the worker to complete and returns the result.
-
-    In Development:
-        - Processes the query locally and returns the result directly.
-
-    :param request: SubmitQueryRequest containing the query_text and optional conversation_history.
-    :return: JSON response with query_id and processed result or status message.
+    Handles both production and development modes with extended `query_rag` payload.
     """
     try:
         query_text = request.query_text
@@ -237,7 +234,29 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
-        # Step 1: Check Cache for Existing Response
+        # Intention detection
+        intention = await intention_detector.detect_intention(query_text, conversation_history)
+        logger.info(f"Intention detected: {intention}")
+
+        if intention == 'irrelevant':
+            return {
+                "query_id": query_id,
+                "response_text": "Your query does not appear to be relevant to this context. Please ask a specific question.",
+                "sources": [],
+                "timestamp": int(time.time())
+            }
+
+        if intention == 'history':
+            history_context = "\n".join([msg["text"] for msg in conversation_history])
+            response_text = f"Based on your conversation history: {history_context}"
+            return {
+                "query_id": query_id,
+                "response_text": response_text,
+                "sources": [],
+                "timestamp": int(time.time())
+            }
+
+        # Cache check
         existing_query = await QueryModel.get_item_by_cache_key(cache_key)
         if existing_query and existing_query.is_complete:
             logger.info(f"Cache hit for query_id: {query_id}")
@@ -248,15 +267,33 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
                 "timestamp": existing_query.timestamp
             }
 
-        # Step 2: Create new query and save it
+        # Create new query and save it
         new_query = QueryModel(query_id=query_id, query_text=query_text)
         await new_query.put_item()
         logger.debug(f"New query object created: {new_query.query_id}")
 
-        # Step 3: Process the query using the appropriate processor
-        response_payload = await processor.process_query(new_query, conversation_history, llm_provider_name)
+        # Process the query using the processor
+        rag_response = await processor.process_query(new_query, conversation_history, llm_provider_name)
 
-        # Step 4: Return the response to the client
+        # Extract data from RAG response
+        query_response = rag_response.get("query_response")
+        retrieved_docs = rag_response.get("retrieved_docs") if DEVELOPMENT_MODE else None
+        debug_prompt = rag_response.get("debug_prompt") if DEVELOPMENT_MODE else None
+
+        # Construct the API response
+        response_payload = {
+            "query_id": query_id,
+            "response_text": query_response.response_text,
+            "sources": query_response.sources,
+            "timestamp": query_response.timestamp
+        }
+
+        # Include additional fields in DEVELOPMENT_MODE
+        if DEVELOPMENT_MODE:
+            response_payload["retrieved_docs"] = retrieved_docs
+            response_payload["debug_prompt"] = debug_prompt
+
+        # Return the constructed payload
         return response_payload
 
     except Exception as exc:

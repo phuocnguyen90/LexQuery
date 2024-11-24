@@ -1,7 +1,7 @@
 import asyncio
 import streamlit as st
-from services.query_rag import query_rag  # Ensure this imports your updated query_rag function
-from models.query_model import QueryModel  # Ensure correct path to your QueryModel
+from services.query_rag import query_rag  
+from models.query_model import QueryModel  
 
 
 # Main Streamlit application

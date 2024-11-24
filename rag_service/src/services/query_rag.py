@@ -125,6 +125,7 @@ def reconstruct_source(source_id: str) -> str:
 
 async def query_rag(
     query_item,
+    conversation_history,
     provider: Optional[Any] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None

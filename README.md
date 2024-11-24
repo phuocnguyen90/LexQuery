@@ -99,7 +99,7 @@ legal_qa_rag/
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/legal_qa_rag.git
+   git clone https://github.com/phuocnguyen90/legal_qa_rag.git
    cd legal_qa_rag
    ```
 
@@ -111,7 +111,7 @@ legal_qa_rag/
    - `CACHE_TABLE_NAME`: DynamoDB table name for caching
    - `SQS_QUEUE_URL`: URL of the SQS queue for processing queries
    - `WORKER_LAMBDA_NAME`: Name of the worker Lambda function
-   - `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`: Redis configurations for development mode
+
 
 3. **Install Dependencies:**
 
