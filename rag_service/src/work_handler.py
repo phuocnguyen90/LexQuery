@@ -16,7 +16,7 @@ from models.query_model import QueryModel
 from shared_libs.config.config_loader import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.llm_providers import ProviderFactory
-from services.query_rag import query_rag
+from rag_service.src.services.deprecated.query_rag_v1 import query_rag
 
 # Initialize the logger
 logger = Logger().get_logger(module_name=__name__)
@@ -103,7 +103,7 @@ def lambda_handler(event, context):
 
 async def process_direct_invocation(payload):
     try:
-        from services.query_rag import query_rag
+        from rag_service.src.services.deprecated.query_rag_v1 import query_rag
         query_id = payload.get('query_id')
         if not query_id:
             logger.error("No query_id found in payload.")
@@ -163,7 +163,7 @@ async def process_sqs_records(message):
     Process a single SQS message.
     """
     try:
-        from services.query_rag import query_rag
+        from rag_service.src.services.deprecated.query_rag_v1 import query_rag
         # Deserialize message
         body = json.loads(message['Body'])
         llm_provider_name = body.get('llm_provider')

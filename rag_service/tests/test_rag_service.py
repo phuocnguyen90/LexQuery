@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app and other components
 from src.handlers.api_handler import app
-from src.services.query_rag import query_rag, QueryResponse
+from rag_service.src.services.deprecated.query_rag_v1 import query_rag, QueryResponse
 from src.models.query_model import QueryModel
 
 # Initialize TestClient for API

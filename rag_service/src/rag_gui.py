@@ -1,6 +1,6 @@
 import asyncio
 import streamlit as st
-from services.query_rag import query_rag  
+from rag_service.src.services.deprecated.query_rag_v1 import query_rag  
 from models.query_model import QueryModel  
 
 

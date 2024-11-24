@@ -224,7 +224,7 @@ async def get_query_endpoint(query_id: str):
 async def submit_query_endpoint(request: SubmitQueryRequest):
     """
     Endpoint to submit a user query for processing.
-    Handles both production and development modes with extended `query_rag` payload.
+    Uses IntentionDetector to classify and handle the query.
     """
     try:
         query_text = request.query_text
@@ -234,21 +234,12 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         conversation_history = request.conversation_history or []
         logger.info(f"Received submit query request: {query_text}, assigned query_id: {query_id}")
 
-        # Intention detection
-        intention = await intention_detector.detect_intention(query_text, conversation_history)
+        # Intention detection using LLM
+        intention, response_text = await intention_detector.detect_intention(query_text, conversation_history)
         logger.info(f"Intention detected: {intention}")
 
-        if intention == 'irrelevant':
-            return {
-                "query_id": query_id,
-                "response_text": "Your query does not appear to be relevant to this context. Please ask a specific question.",
-                "sources": [],
-                "timestamp": int(time.time())
-            }
-
-        if intention == 'history':
-            history_context = "\n".join([msg["text"] for msg in conversation_history])
-            response_text = f"Based on your conversation history: {history_context}"
+        if intention in ['irrelevant', 'history']:
+            # Return response_text directly for irrelevant and history cases
             return {
                 "query_id": query_id,
                 "response_text": response_text,
@@ -256,7 +247,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
                 "timestamp": int(time.time())
             }
 
-        # Cache check
+        # Proceed with RAG if necessary
         existing_query = await QueryModel.get_item_by_cache_key(cache_key)
         if existing_query and existing_query.is_complete:
             logger.info(f"Cache hit for query_id: {query_id}")
@@ -267,20 +258,16 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
                 "timestamp": existing_query.timestamp
             }
 
-        # Create new query and save it
         new_query = QueryModel(query_id=query_id, query_text=query_text)
         await new_query.put_item()
         logger.debug(f"New query object created: {new_query.query_id}")
 
-        # Process the query using the processor
         rag_response = await processor.process_query(new_query, conversation_history, llm_provider_name)
 
-        # Extract data from RAG response
         query_response = rag_response.get("query_response")
         retrieved_docs = rag_response.get("retrieved_docs") if DEVELOPMENT_MODE else None
         debug_prompt = rag_response.get("debug_prompt") if DEVELOPMENT_MODE else None
 
-        # Construct the API response
         response_payload = {
             "query_id": query_id,
             "response_text": query_response.response_text,
@@ -288,12 +275,10 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
             "timestamp": query_response.timestamp
         }
 
-        # Include additional fields in DEVELOPMENT_MODE
         if DEVELOPMENT_MODE:
             response_payload["retrieved_docs"] = retrieved_docs
             response_payload["debug_prompt"] = debug_prompt
 
-        # Return the constructed payload
         return response_payload
 
     except Exception as exc:
