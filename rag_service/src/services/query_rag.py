@@ -19,10 +19,6 @@ from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
 from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
 
-# Imports from services
-
-
-
 # Load configuration
 config_loader = AppConfigLoader()
 config = config_loader.config
@@ -52,58 +48,95 @@ class QueryResponse(BaseModel):
     sources: List[str]
     timestamp: int
 
-async def local_embed(query: str) -> Optional[List[float]]:
+DEVELOPMENT_MODE = True  # Enable this flag to include retrieved_docs in the response
+
+import re
+from typing import Optional
+
+def reconstruct_source(source_id: str) -> str:
     """
-    Temporary local embedding function for development purposes.
-    Replace this with a proper embedding model as needed.
+    Reconstruct a readable source string from a source_id.
+
+    Rules:
+    - Ignore 'ch' (chapter) if present.
+    - 'art' is followed by a number without hyphen (e.g., 'art002' -> 'Điều 2').
+    - 'cl_' is followed by a number (e.g., 'cl_12' -> 'khoản 12').
+    - 'pt_' is followed by a label (e.g., 'pt_a' -> 'điểm a').
+
+    :param source_id: The source ID to reconstruct.
+    :return: A human-readable string describing the source.
     """
-    MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    CACHE_DIR = "/app/models"
     try:
-        import fastembed
-        import numpy as np
-        embedding_provider = fastembed.TextEmbedding(
-            model_name=MODEL_NAME,
-            cache_dir=CACHE_DIR,
-            local_files_only=True  # Ensure only local models are used
-        )
-        embedding_generator = embedding_provider.embed(query)
-        embeddings = list(embedding_generator)
-        if not embeddings:
-            logger.error(f"No embeddings returned for text '{query}'.")
-            return []
-        embedding = np.array(embeddings[0])  # Take the first embedding
+        # Initialize variables
+        article = None
+        clause = None
+        point = None
 
-        # Ensure that the embedding is a flat array
-        if embedding.ndim != 1:
-            logger.error(f"Embedding for text '{query}' is not a flat array. Got shape: {embedding.shape}")
-            return []
+        # Patterns to match 'art', 'cl_', and 'pt_'
+        art_pattern = re.compile(r'art(\d+)', re.IGNORECASE)
+        cl_pattern = re.compile(r'cl_(\d+)', re.IGNORECASE)
+        pt_pattern = re.compile(r'pt_(\w+)', re.IGNORECASE)
 
-        # Log embedding norm for debugging
-        embedding_norm = np.linalg.norm(embedding)
-        logger.debug(f"Embedding norm for text '{query}': {embedding_norm}")
+        # Search for patterns
+        art_match = art_pattern.search(source_id)
+        cl_match = cl_pattern.search(source_id)
+        pt_match = pt_pattern.search(source_id)
 
-        return embedding.tolist()
+        # Extract base document (everything before the first '_')
+        base_document = source_id.split('_')[0]
+
+        # Extract article number
+        if art_match:
+            article_number = int(art_match.group(1))
+            article = f"Điều {article_number}"
+
+        # Extract clause number
+        if cl_match:
+            clause_number = int(cl_match.group(1))
+            clause = f"khoản {clause_number}"
+
+        # Extract point label
+        if pt_match:
+            point_label = pt_match.group(1)
+            point = f"điểm {point_label}"
+
+        # Assemble the reconstructed source
+        reconstructed_parts = []
+        if clause:
+            reconstructed_parts.append(clause)
+        if article:
+            reconstructed_parts.append(article)
+        if point:
+            reconstructed_parts.append(point)
+
+        # Combine parts with base document
+        if reconstructed_parts:
+            reconstructed_source = f"{', '.join(reconstructed_parts)} văn bản {base_document}"
+        else:
+            # If no article, clause, or point found, just return the base document
+            reconstructed_source = f"văn bản {base_document}"
+
+        return reconstructed_source
+
     except Exception as e:
-        logger.error(f"Failed to create embedding for the input: '{query}', error: {e}")
-        return []
+        logger.error(f"Failed to reconstruct source from source_id '{source_id}': {e}")
+        return "Unknown Source"
+
 
 async def query_rag(
     query_item,
     provider: Optional[Any] = None,
-    conversation_history: Optional[List[Dict[str, str]]] = None,
     embedding_mode: Optional[str] = None,
-    llm_provider_name: Optional[str] = None  # New optional parameter
-) -> QueryResponse:
+    llm_provider_name: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Perform Retrieval-Augmented Generation (RAG) to answer the user's query.
 
     :param query_item: An object containing the query text.
     :param provider: (Optional) An initialized LLM provider.
-    :param conversation_history: (Optional) List of previous conversation messages.
     :param embedding_mode: (Optional) 'local' or 'api' to override the default embedding mode.
     :param llm_provider_name: (Optional) Name of the LLM provider to use if provider is not initialized.
-    :return: QueryResponse containing the answer and sources.
+    :return: A dictionary containing the response and, if DEVELOPMENT_MODE is enabled, retrieved_docs.
     """
     from services.search_qdrant import search_qdrant
     from services.get_embedding_function import get_embedding_function
@@ -130,16 +163,10 @@ async def query_rag(
             provider = llm_provider
 
     # Determine the embedding mode
-    if embedding_mode:
-        current_embedding_mode = embedding_mode.lower()
-        logger.debug(f"Overriding embedding mode to: {current_embedding_mode}")
-    else:
-        current_embedding_mode = config.get('embedding', {}).get('mode', 'local').lower()
-        logger.debug(f"Using embedding mode from config: {current_embedding_mode}")
+    current_embedding_mode = embedding_mode.lower() if embedding_mode else config.get('embedding', {}).get('mode', 'local').lower()
 
     # Get the embedding function based on the mode
     embedding_function = get_embedding_function()
-    # Initialize the embedding vector
     embedding_vector = None
 
     if current_embedding_mode in ["local", "api"]:
@@ -149,69 +176,77 @@ async def query_rag(
                 raise ValueError("Embedding vector is None.")
         except Exception as e:
             logger.error(f"Failed to generate embedding for query '{query_text}': {e}")
-            return QueryResponse(
-                query_text=query_text,
-                response_text="An error occurred while creating embedding.",
-                sources=[],
-                timestamp=int(time.time())
-            )
-    else:
-        logger.error(f"Unsupported embedding mode '{current_embedding_mode}'.")
-        return QueryResponse(
-            query_text=query_text,
-            response_text="An error occurred while determining the embedding mode.",
-            sources=[],
-            timestamp=int(time.time())
-        )
+            return {
+                "query_response": QueryResponse(
+                    query_text=query_text,
+                    response_text="An error occurred while creating embedding.",
+                    sources=[],
+                    timestamp=int(time.time())
+                ),
+                "retrieved_docs": [] if DEVELOPMENT_MODE else None
+            }
 
-    # Proceed to retrieve similar documents using Qdrant
+    # Retrieve similar documents using Qdrant
     logger.debug(f"Retrieving documents related to query: '{query_text}'")
-    retrieved_docs = await search_qdrant(embedding_vector, top_k=3)
+    retrieved_docs = await search_qdrant(embedding_vector, top_k=6)
+    # Reconstruct sources for documents where source is None
+    for doc in retrieved_docs:
+        if not doc.get("source"):
+            doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
+
     if not retrieved_docs:
         logger.warning(f"No relevant documents found for query: '{query_text}'")
-        response_text = "No relevant information found."
+        response_text = "Không tìm thấy dữ liệu liên quan."
         sources = []
     else:
         # Combine retrieved documents to form context for LLM
         context = "\n\n---------------------------\n\n".join([
-            f"Document ID: {doc['record_id']}\nSource: {doc['source']}\nContent: {doc['content']}"
+            
+            f"Document ID: {doc.get('document_id', 'N/A')}\n"
+            f"Cơ sở pháp lý: {doc.get('source', 'N/A')}\n"
+            f"Mô tả: {doc.get('title', 'N/A')}\n"           
+            f"Nội dung: {doc.get('content', 'No content available.')}\n"
+            f"Record ID: {doc.get('record_id', 'N/A')}\n"
+            f"Chunk ID: {doc.get('chunk_id', 'N/A')}\n"
             for doc in retrieved_docs if doc.get('content')
         ])
-        logger.debug(f"Retrieved documents combined to form context for query: '{query_text}'")
-
-        # Define the system prompt with clear citation instructions using the loaded prompt
-        system_prompt = rag_prompt
-        logger.debug(f"System prompt loaded for query: '{query_text}'")
 
         # Combine system prompt and user message to form the full prompt
-        full_prompt = f"{system_prompt}\n\nUser Question: {query_text}\n\nRelated Answers:\n\n{context}"
+        full_prompt = f"{rag_prompt}\n\nUser Question: {query_text}\n\nRelated information:\n\n{context}"
         logger.debug(f"Full prompt created for query: '{query_text}'")
 
         # Generate response using the LLM provider
         try:
-            logger.debug(f"Generating response using LLM provider")
             response_text = await provider.send_single_message(prompt=full_prompt)
         except Exception as e:
             logger.error(f"Failed to generate a response using the provider for query: '{query_text}'. Error: {str(e)}")
             response_text = "An error occurred while generating the answer."
 
-        # Add citations to the response based on retrieved document IDs
+        # Add citations to the response
         if retrieved_docs:
-            citation_texts = [f"[Document ID: {doc['record_id']}]" for doc in retrieved_docs if doc.get('content')]
+            citation_texts = [f"[Record ID: {doc['record_id']}]" for doc in retrieved_docs if doc.get('content')]
             if citation_texts:
                 response_text += "\n\nReferences: " + ", ".join(citation_texts)
 
-        # Extract sources from retrieved_docs
+        # Extract sources
         sources = [doc['record_id'] for doc in retrieved_docs]
 
-    # Create and return the QueryResponse
-    response = QueryResponse(
+    # Create the response
+    query_response = QueryResponse(
         query_text=query_text,
         response_text=response_text,
         sources=sources,
         timestamp=int(time.time())
     )
-    return response
+
+    # Inside query_rag, add the full_prompt to the returned dictionary
+    return {
+    "query_response": query_response,
+    "retrieved_docs": retrieved_docs if DEVELOPMENT_MODE else None,
+    "debug_prompt": full_prompt if DEVELOPMENT_MODE else None  # Include raw prompt for debugging
+}
+
+
 
 # For local testing
 async def main():
@@ -223,7 +258,7 @@ async def main():
     import sys
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from models.query_model import QueryModel  
-    query_text = "Can I establish a joint-stock company with charter capital under 1 billion VND?"
+    query_text = "cổ đông gồm những ai"
     query_item = QueryModel(query_text=query_text)
 
     # Since query_rag is an async function, we need to await its result.

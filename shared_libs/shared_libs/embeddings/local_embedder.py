@@ -18,6 +18,7 @@ class LocalEmbedder(BaseEmbedder):
             model_name=config.model_name, 
         )
         logger.info(f"LocalEmbedder initialized with model '{config.model_name}'.")
+        self.vector_dimension = config.vector_dimension
 
     def embed(self, text: str) -> List[float]:
         """
@@ -34,7 +35,7 @@ class LocalEmbedder(BaseEmbedder):
                 return []
 
             embedding = np.array(embeddings)
-            logger.debug(f"Raw embedding: {embedding}")
+            # logger.debug(f"Raw embedding: {embedding}")
             # Handle 2D arrays with a single embedding vector
             if embedding.ndim == 2 and embedding.shape[0] == 1:
                 embedding = embedding[0]
@@ -62,7 +63,7 @@ class LocalEmbedder(BaseEmbedder):
                 return [[] for _ in texts]
             processed_embeddings = []
             for idx, embedding in enumerate(embeddings_list):
-                logger.debug(f"Raw embedding for text {idx}: {embedding}")
+                # logger.debug(f"Raw embedding for text {idx}: {embedding}")
                 if isinstance(embedding, np.ndarray):
                     embedding = embedding.astype(float).tolist()
                 elif isinstance(embedding, (list, tuple)):
@@ -75,3 +76,9 @@ class LocalEmbedder(BaseEmbedder):
         except Exception as e:
             logger.error(f"Error during batch embed: {e}")
             return [[] for _ in texts]
+
+    def vector_size(self) -> int:
+        """
+        Return the vector size from the configuration.
+        """
+        return self.vector_dimension

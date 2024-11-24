@@ -16,6 +16,7 @@ class BaseEmbeddingConfig(BaseModel):
 class LocalEmbeddingConfig(BaseModel):
     model_name: str = Field(..., description="Local model name")
     cache_dir: str = Field(..., description="Directory to cache local models")
+    vector_dimension: Optional[int] = Field(None, description="Vector dimension for local models")
 
 class DockerEmbeddingConfig(BaseModel):
     service_url: str = Field(..., description="Docker service URL for embeddings")
@@ -26,6 +27,7 @@ class EC2EmbeddingConfig(BaseModel):
 class BedrockEmbeddingConfig(BaseModel):
     model_id: str = Field(..., description="Amazon Bedrock model ID")
     region_name: str = Field(..., description="AWS region name")
+    vector_dimension: Optional[int] = Field(None, description="Vector dimension for Bedrock model")
 
 class GroqEmbeddingConfig(BaseModel):
     api_key: str = Field(..., description="API key for Groq")

@@ -4,10 +4,10 @@ import logging
 import json
 from typing import Optional, Dict, Any
 
-from utils.validation import load_schema, validate_record, mask_api_key
-from utils.retry_handler import retry
-from utils.record import Record
-from utils.llm_formatter import LLMFormatter
+from validation import load_schema, validate_record, mask_api_key
+from shared_libs.utils.deprecated.retry_handler import retry
+from shared_libs.models.record_model import Record
+from llm_formatter import LLMFormatter
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)

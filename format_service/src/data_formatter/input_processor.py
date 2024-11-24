@@ -11,9 +11,10 @@ from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from lxml import etree
 
-from tasks.preprocessing import Preprocessor  
-from utils.record import Record  
-from utils.llm_formatter import LLMFormatter, detect_text_type  
+from preprocessing import Preprocessor  
+from shared_libs.models.record_model import Record  
+from llm_formatter import LLMFormatter
+from validation import detect_text_type 
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
