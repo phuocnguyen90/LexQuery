@@ -86,3 +86,9 @@ class BedrockEmbedder(BaseEmbedder):
             embedding = self.embed(text)
             embeddings.append(embedding)
         return embeddings
+    
+    def vector_size(self) -> int:
+        """
+        Return the vector size from the configuration.
+        """
+        return self.vector_dimension

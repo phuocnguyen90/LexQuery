@@ -4,8 +4,8 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  provider: "local"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
-  mode: "local" # Options for embedding calling from query_rag() method: local or API
+  provider: "ec2"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
+  mode: "api" # Options for embedding calling from query_rag() method: local or API
   api_service_url: "http://54.174.232.98:8000/embed" # Current API url for EC2 instance embedding server
   # API Endpoint-based Embedding Providers
   api_providers:
@@ -14,6 +14,7 @@ embedding:
 
     ec2:
       service_url: "http://54.174.232.98:8000/embed"
+      vector_dimension: 384
 
     bedrock:
       model_name: "amazon.titan-embed-text-v2:0"
@@ -25,7 +26,7 @@ embedding:
       service_url: "https://api.openai.com/v1/embeddings"
       api_key: "${OPENAI_API_KEY}"
       model_name: "text-embedding-3-small"
-      vector_dimension: 1536  
+      vector_dimension: 1024  
 
     google_gemini_embedding:
       api_key: "${GEMINI_API_KEY}"

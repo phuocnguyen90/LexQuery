@@ -28,7 +28,7 @@ if not QDRANT_API_KEY or not QDRANT_URL:
     exit(1)
 
 # Initialize the embedding function using Bedrock
-embedding_function = EmbedderFactory.create_embedder(embedding_config.library_providers['local'])
+embedding_function = EmbedderFactory.create_embedder('ec2')
 
 def initialize_qdrant(local: bool = True):
     """
