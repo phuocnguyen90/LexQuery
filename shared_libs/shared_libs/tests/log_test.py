@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.logger import Logger 
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.utils.deprecated.config_loader import ConfigLoader
 from pathlib import Path
 config=ConfigLoader()
 print(f"DEVELOPMENT_MODE: {os.getenv('DEVELOPMENT_MODE')}")

@@ -1,12 +1,30 @@
+# shared_libs\shared_libs\embeddings\ec2_embedder.py
 import requests
-from typing import List, Dict
+from typing import List, Dict, Any
 from .base_embedder import BaseEmbedder
-from shared_libs.config.embedding_config import EC2EmbeddingConfig
+from .embedder_registry import EmbedderRegistry
+from typing_extensions import Literal
 
+@EmbedderRegistry.register('ec2')
 class EC2Embedder(BaseEmbedder):
-    def __init__(self, config: EC2EmbeddingConfig):
-        self.service_url = config.service_url
-        self.vector_dimension = config.vector_dimension
+    required_fields = ["service_url", "vector_dimension"]
+
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize EC2Embedder with dynamic configuration.
+
+        Args:
+            config (Dict[str, Any]): Configuration dictionary for the EC2 provider.
+        """
+        self.provider: Literal['ec2'] = 'ec2'
+
+        # Validate required fields
+        for field in self.required_fields:
+            if field not in config:
+                raise ValueError(f"Missing required field '{field}' in EC2 configuration.")
+
+        self.service_url = config["service_url"]
+        self.vector_dimension = int(config["vector_dimension"])
 
     def embed(self, text: str) -> List[float]:
         response = requests.post(self.service_url, json={"texts": [text], "is_batch": False})
@@ -17,9 +35,6 @@ class EC2Embedder(BaseEmbedder):
         response = requests.post(self.service_url, json={"texts": texts, "is_batch": True})
         response.raise_for_status()
         return response.json()["embeddings"]
-    
+
     def vector_size(self) -> int:
-        """
-        Return the vector size from the configuration.
-        """
         return self.vector_dimension

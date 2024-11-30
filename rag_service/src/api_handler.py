@@ -16,7 +16,7 @@ from hashlib import md5
 from services.intention_detector import IntentionDetector
 
 # Import from shared_libs
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 
 import sys

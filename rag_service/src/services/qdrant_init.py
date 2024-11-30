@@ -1,70 +1,121 @@
 # src/services/qdrant_init.py
+
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import Distance, VectorParams
-from shared_libs.config.config_loader import AppConfigLoader
-from shared_libs.utils.logger import Logger
-from shared_libs.embeddings.embedder_factory import EmbedderFactory # Updated import
+from shared_libs.config import Config
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.config.embedding_config import EmbeddingConfig
+from shared_libs.utils.logger import Logger
+from shared_libs.embeddings.embedder_factory import EmbedderFactory
 
-# Load configuration from shared_libs
-config = AppConfigLoader()
+# Initialize the centralized configuration
+# Load configuration
+config = Config()
+config_loader = AppConfigLoader()
+embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+# Initialize EmbedderFactory
+factory = EmbedderFactory(embedding_config)
 
-embedding_config=EmbeddingConfig.from_config_loader()
-
-# Configure logging using Logger from shared_libs
+# Initialize logging using Logger from shared_libs
 logger = Logger.get_logger(module_name=__name__)
 
-# Load Qdrant configuration
-qdrant_config = config.get("qdrant", {})
-QDRANT_API_KEY = qdrant_config.get("api_key")
-QDRANT_URL = qdrant_config.get("url")
-QA_COLLECTION_NAME = 'legal_qa'
-DOC_COLLECTION_NAME = 'legal_doc'
+# Initialize the embedding function using the configured embedder
 
-# Set up Qdrant Client with Qdrant Cloud parameters
-if not QDRANT_API_KEY or not QDRANT_URL:
-    logger.error("QDRANT_API_KEY and QDRANT_URL must be set.")
-    exit(1)
+embedding_function = factory.create_embedder('ec2')  
 
-# Initialize the embedding function using Bedrock
-embedding_function = EmbedderFactory.create_embedder('ec2')
-
-def initialize_qdrant(local: bool = True):
+def initialize_qdrant():
     """
-    Initialize a Qdrant client and configure the collection.
-
-    :param local: Whether to use a local Qdrant server.
-    :return: Initialized Qdrant client.
+    Initialize a Qdrant client and configure the collections.
     """
-    if local:
-        logger.info("Using local Qdrant server for testing.")
-        client = QdrantClient(url="http://localhost:6333") 
-    else:
-        if not QDRANT_API_KEY or not QDRANT_URL:
+    config = Config()
+    qdrant_config = config.qdrant.api
+    qa_collection_name = config.qdrant.collection_names.get("qa_collection", "legal_qa")
+    doc_collection_name = config.qdrant.collection_names.get("doc_collection", "legal_doc")
+    distance_metric = config.qdrant.distance_metric
+    local = config.qdrant.local
+
+    # Set up Qdrant Client with Qdrant Cloud parameters
+    if not qdrant_config.api_key or not qdrant_config.url:
+        if not local:
             logger.error("QDRANT_API_KEY and QDRANT_URL must be set for remote server.")
             exit(1)
-        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, prefer_grpc=True)
+        else:
+            logger.warning("QDRANT_API_KEY and QDRANT_URL not set. Falling back to local Qdrant server.")
+
+    # Initialize the Qdrant client
+    if local:
+        logger.info("Using local Qdrant server for testing.")
+        client = QdrantClient(url="http://localhost:6333")
+    else:
+        client = QdrantClient(
+            url=qdrant_config.url,
+            api_key=qdrant_config.api_key,
+            prefer_grpc=True
+        )
         logger.info("Using remote Qdrant server.")
 
     # Get vector size from embedder
-    vector_size = embedding_function.vector_size()
+    if hasattr(embedding_function, 'vector_size'):
+        vector_size = embedding_function.vector_size()
+    elif hasattr(embedding_function, 'vector_dimension'):
+        vector_size = embedding_function.vector_dimension
+    else:
+        logger.error("Embedding function does not have a 'vector_size' or 'vector_dimension' attribute.")
+        exit(1)
 
-    try:
-        # Check if the collection already exists
-        client.get_collection(QA_COLLECTION_NAME) 
-        logger.debug(f"Collection '{QA_COLLECTION_NAME}' already exists.")
-    except UnexpectedResponse:
-        # If the collection does not exist, create it
-        logger.debug(f"Collection '{QA_COLLECTION_NAME}' not found. Creating it now.")
-        client.create_collection(
-            QA_COLLECTION_NAME=QA_COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=vector_size,
-                distance=Distance.COSINE  # Adjust distance metric as required
+    # Validate distance metric
+    distance_metric_enum = {
+        "cosine": Distance.COSINE,
+        "dot": Distance.DOT
+    }.get(distance_metric.lower())
+
+    if not distance_metric_enum:
+        logger.error(f"Unsupported distance metric '{distance_metric}'.")
+        exit(1)
+
+    def ensure_collection_exists(collection_name: str):
+        """
+        Ensure a Qdrant collection exists; create it if it doesn't.
+        """
+        try:
+            client.get_collection(collection_name)
+            logger.debug(f"Collection '{collection_name}' already exists.")
+        except UnexpectedResponse:
+            logger.debug(f"Collection '{collection_name}' not found. Creating it now.")
+            client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(
+                    size=vector_size,
+                    distance=distance_metric_enum
+                )
             )
-        )
-        logger.info(f"Collection '{QA_COLLECTION_NAME}' created successfully.")
+            logger.info(f"Collection '{collection_name}' created successfully.")
+        except Exception as e:
+            # Handle gRPC error for a missing collection
+            if "Collection" in str(e) and "doesn't exist" in str(e):
+                logger.debug(f"Collection '{collection_name}' not found. Creating it now.")
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=vector_size,
+                        distance=distance_metric_enum
+                    )
+                )
+                logger.info(f"Collection '{collection_name}' created successfully.")
+            else:
+                logger.error(f"Unexpected error while checking collection '{collection_name}': {e}")
+                raise
+
+
+    # Ensure QA and Document collections exist
+    ensure_collection_exists(qa_collection_name)
+    ensure_collection_exists(doc_collection_name)
 
     return client
 
+
+# Example Usage
+if __name__ == "__main__":
+    qdrant_client = initialize_qdrant()
+    logger.info("Qdrant client initialized successfully.")

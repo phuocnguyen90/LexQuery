@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.query_model import QueryModel
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.llm_providers import ProviderFactory
 from rag_service.src.services.deprecated.query_rag_v1 import query_rag

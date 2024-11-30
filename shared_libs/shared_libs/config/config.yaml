@@ -4,14 +4,14 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  provider: "ec2"  # Options for embedding server: local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding
-  mode: "api" # Options for embedding calling from query_rag() method: local or API
-  api_service_url: "http://54.174.232.98:8000/embed" # Current API url for EC2 instance embedding server
+  default_provider: "ec2"  # Default provider for the embedding service
+  mode: "api"             # Mode of interaction: 'local' or 'api'
+
+  # Global API URL for embedding service
+  api_service_url: "http://localhost:8000/embed"  # Override this in each environment as needed
+
   # API Endpoint-based Embedding Providers
   api_providers:
-    # docker:
-    #   service_url: "http://localhost:8000/embed"
-
     ec2:
       service_url: "http://54.174.232.98:8000/embed"
       vector_dimension: 384
@@ -20,7 +20,6 @@ embedding:
       model_name: "amazon.titan-embed-text-v2:0"
       region_name: "us-east-1"
       vector_dimension: 1024
-      
 
     openai_embedding:
       service_url: "https://api.openai.com/v1/embeddings"
@@ -45,9 +44,22 @@ embedding:
       model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
       cache_dir: "/app/models"
       vector_dimension: 384
+    fastembed:
+      library_path: "/app/libraries/fastembed.py"
+      function_name: "generate_embedding"
+      vector_dimension: 512
 
-
-
+  # Environment Overrides
+  environments:
+    development:
+      default_provider: "local"
+      api_service_url: "http://localhost:8000/embed"
+    testing:
+      default_provider: "docker"
+      api_service_url: "http://localhost:8001/embed"
+    production:
+      default_provider: "ec2"
+      api_service_url: "http://54.174.232.98:8000/embed"
 
 
 
@@ -90,10 +102,14 @@ llm:
 
 # Qdrant Database Configuration
 qdrant:
-  api_key: "${QDRANT_API_KEY}"
-  url: "${QDRANT_URL}"
-  QA_COLLECTION_NAME: "legal_qa"
-  DOC_COLLECTION_NAME: "legal_doc"
+  api:
+    api_key: "${QDRANT_API_KEY}"  # Optional if local is True
+    url: "${QDRANT_URL}"          # Optional if local is True
+  collection_names:
+    qa_collection: "legal_qa"
+    doc_collection: "legal_doc"
+  distance_metric: "cosine"
+  local: false  
 
 processing:
   input_file: "src/data/raw/input.txt"

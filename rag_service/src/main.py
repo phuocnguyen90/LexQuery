@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from mangum import Mangum
 
 # Import from shared_libs
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 
 # Import internal model and services

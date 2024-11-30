@@ -5,11 +5,13 @@ import boto3
 from botocore.exceptions import ClientError
 from typing import List, Optional
 from .base_embedder import BaseEmbedder
+from .embedder_registry import EmbedderRegistry
 from shared_libs.config.embedding_config import BedrockEmbeddingConfig
 from shared_libs.utils.logger import Logger
 
 logger = Logger.get_logger(module_name=__name__)
 
+@EmbedderRegistry.register('bedrock')
 class BedrockEmbedder(BaseEmbedder):
     def __init__(self, config: BedrockEmbeddingConfig):
         """

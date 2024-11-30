@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 from typing import List, Dict
 
 from shared_libs.utils.logger import Logger
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 
 # Configure logger
 try:

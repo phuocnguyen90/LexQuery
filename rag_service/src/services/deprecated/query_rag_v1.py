@@ -17,7 +17,7 @@ if parent_dir not in sys.path:
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
-from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
+from shared_libs.config.app_config import AppConfigLoader, PromptConfigLoader
 
 # Load configuration
 config_loader = AppConfigLoader()

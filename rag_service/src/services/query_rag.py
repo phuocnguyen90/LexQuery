@@ -14,8 +14,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 try:
-    from search_qdrant import search_qdrant, reconstruct_source
-    from get_embedding_function import get_embedding_function
+    from .search_qdrant import search_qdrant, reconstruct_source
+    from .get_embedding_function import get_embedding_function
 except:
     from services.search_qdrant import search_qdrant, reconstruct_source
     from services.get_embedding_function import get_embedding_function
@@ -23,7 +23,7 @@ except:
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
-from shared_libs.config.config_loader import AppConfigLoader, PromptConfigLoader
+from shared_libs.config.app_config import AppConfigLoader, PromptConfigLoader
 
 # Load configuration
 config_loader = AppConfigLoader()

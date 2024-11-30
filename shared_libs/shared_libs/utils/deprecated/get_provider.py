@@ -1,5 +1,5 @@
 # shared_libs\shared_libs\llm_providers\get_provider.py
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.utils.deprecated.config_loader import ConfigLoader
 from ...llm_providers.groq_provider import GroqProvider
 from ...llm_providers.openai_provider import OpenAIProvider 
 from ...llm_providers.gemini_provider import GeminiProvider
