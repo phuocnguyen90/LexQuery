@@ -14,6 +14,9 @@ def main():
     # Checkbox to enable debug mode
     debug_mode = st.checkbox("Enable Debug Mode", value=False, help="Show raw prompt and context details for debugging.")
 
+    # Checkbox to enable reranking
+    rerank_option = st.checkbox("Enable Reranking", value=False, help="Use reranker to reorder retrieved documents based on relevance.")
+
     # Button to submit query
     if st.button("Submit Query"):
         if not query_text.strip():
@@ -23,17 +26,17 @@ def main():
         # Run the RAG query and display the result
         with st.spinner("Processing your query..."):
             try:
-                response_data = asyncio.run(run_query(query_text, debug_mode))
+                response_data = asyncio.run(run_query(query_text, debug_mode, rerank_option))
                 display_response(response_data, debug_mode)
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
 
 # Asynchronous function to execute the RAG query
-async def run_query(query_text: str, debug_mode: bool) -> dict:
-    conversation_history=[]
+async def run_query(query_text: str, debug_mode: bool, rerank: bool) -> dict:
+    conversation_history = []
     query_item = QueryModel(query_text=query_text)
-    response_data = await query_rag(query_item=query_item,conversation_history=conversation_history)
+    response_data = await query_rag(query_item=query_item, conversation_history=conversation_history, rerank=rerank)
     if debug_mode:
         st.session_state["debug_prompt"] = response_data.get("debug_prompt", None)
         st.session_state["retrieved_docs"] = response_data.get("retrieved_docs", [])

@@ -47,9 +47,10 @@ async def search_qdrant(
     :param top_k: Number of top similar documents to retrieve.
     :return: List of dictionaries containing all relevant document fields and similarity score.
     """
-    if not embedding_vector:
+    if embedding_vector is None or len(embedding_vector) == 0:
         logger.error("No embedding vector provided for Qdrant search.")
         return []
+
 
     try:
         logger.debug(f"Searching Qdrant for top {top_k} documents in collection '{collection_name}'.")

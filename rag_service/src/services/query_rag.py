@@ -1,3 +1,4 @@
+# rag_service\src\services\query_rag.py
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Callable
 import time
@@ -15,19 +16,26 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 try:
     from .search_qdrant import search_qdrant, reconstruct_source
-    from .get_embedding_function import get_embedding_function
+
 except:
     from services.search_qdrant import search_qdrant, reconstruct_source
-    from services.get_embedding_function import get_embedding_function
+
 
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory
 from shared_libs.utils.logger import Logger
-from shared_libs.config.app_config import AppConfigLoader, PromptConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
+from shared_libs.config.prompt_config import PromptConfigLoader
+from shared_libs.config.embedding_config import EmbeddingConfig
+from shared_libs.embeddings.embedder_factory import EmbedderFactory 
 
 # Load configuration
 config_loader = AppConfigLoader()
 config = config_loader.config
+EMBEDDING_MODE=os.getenv('EMBEDDING_MODE','local')
+embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+factory = EmbedderFactory(embedding_config)
+embedding_function = factory.create_embedder(EMBEDDING_MODE)  
 
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)
@@ -78,16 +86,32 @@ def initialize_provider(llm_provider_name: Optional[str] = None) -> Any:
 
 async def generate_embedding(query_text: str, embedding_function: Callable) -> Optional[np.ndarray]:
     """
-    Generate the embedding vector for the query.
+    Generate the embedding vector for the query using the provided embedding function.
+
+    Args:
+        query_text (str): The text to generate embeddings for.
+        embedding_function (Callable): The embedding function or object.
+
+    Returns:
+        Optional[np.ndarray]: The embedding vector or None if an error occurs.
     """
     try:
-        embedding_vector = await embedding_function(query_text)
+        if callable(getattr(embedding_function, 'embed', None)):
+            embedding_vector = embedding_function.embed(query_text)
+        elif callable(embedding_function):
+            embedding_vector = await embedding_function(query_text)
+        else:
+            raise ValueError("Invalid embedding function provided.")
+
         if embedding_vector is None:
             raise ValueError("Embedding vector is None.")
-        return embedding_vector
+
+        # Convert to NumPy array explicitly
+        return np.array(embedding_vector)
     except Exception as e:
         logger.error(f"Failed to generate embedding for query '{query_text}': {e}")
         return None
+
 
 async def retrieve_documents(embedding_vector: np.ndarray, top_k: int = 6) -> List[Dict]:
     """
@@ -240,10 +264,22 @@ async def query_rag(
     conversation_history: Optional[List],
     provider: Optional[Any] = None,
     embedding_mode: Optional[str] = None,
-    llm_provider_name: Optional[str] = None
+    llm_provider_name: Optional[str] = None,
+    rerank: bool = False
 ) -> Dict[str, Any]:
     """
     Perform Retrieval-Augmented Generation (RAG) to answer the user's query by searching both QA and DOC collections.
+    
+    Args:
+        query_item: The query input model.
+        conversation_history: Optional conversation history for context.
+        provider: LLM provider.
+        embedding_mode: Mode for embedding ('local' or 'api').
+        llm_provider_name: Name of the LLM provider.
+        rerank: Whether to apply reranking to the retrieved documents (default False).
+    
+    Returns:
+        Dict[str, Any]: RAG response with query_response and retrieved_docs.
     """
     query_text = query_item.query_text
 
@@ -254,12 +290,19 @@ async def query_rag(
     current_embedding_mode = embedding_mode.lower() if embedding_mode else config.get('embedding', {}).get('mode', 'local').lower()
 
     # Get the embedding function based on the mode
-    embedding_function = get_embedding_function()
+    embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+    factory = EmbedderFactory(embedding_config)
+
+    if current_embedding_mode == "api":
+        embedding_function = factory.create_embedder('ec2')
+    elif current_embedding_mode == "local":
+        embedding_function = factory.create_embedder('local')
+    else:
+        raise ValueError(f"Unsupported embedding mode: {current_embedding_mode}")
 
     # Generate embedding vector for the query
     embedding_vector = await generate_embedding(query_text, embedding_function)
     if embedding_vector is None:
-        # Return an error response
         return {
             "query_response": QueryResponse(
                 query_text=query_text,
@@ -270,19 +313,19 @@ async def query_rag(
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
-    # Retrieve documents from QA and DOC collections
-    QA_COLLECTION_NAME=os.getenv("QA_COLLECTION_NAME", "legal_qa")
-    DOC_COLLECTION_NAME=os.getenv("DOC_COLLECTION_NAME", "legal_doc")
+    # Retrieve documents
+    QA_COLLECTION_NAME = os.getenv("QA_COLLECTION_NAME", "legal_qa")
+    DOC_COLLECTION_NAME = os.getenv("DOC_COLLECTION_NAME", "legal_doc")
     qa_docs = await search_qdrant(embedding_vector, collection_name=QA_COLLECTION_NAME, top_k=3)
     doc_chunks = await search_qdrant(embedding_vector, collection_name=DOC_COLLECTION_NAME, top_k=6)
 
     # Combine the results
     all_retrieved_docs = qa_docs + doc_chunks
 
-    # If no documents are found, handle as no data
+    # Handle case with no retrieved documents
     if not all_retrieved_docs:
         logger.warning(f"No relevant documents found for query: '{query_text}'")
-        response_text = "Không tìm thấy dữ liệu liên quan."
+        response_text = "No relevant data found."
         query_response = QueryResponse(
             query_text=query_text,
             response_text=response_text,
@@ -294,7 +337,35 @@ async def query_rag(
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
-    # Reconstruct sources for DOC collection results only
+    # Optional reranking logic
+    if rerank:
+        try:
+            # Lazy import the reranker
+            from services.reranker import Reranker, map_qdrant_rerank, map_rerank_qdrant
+
+            # Map Qdrant results to rerank format
+            mapped_results = map_qdrant_rerank(all_retrieved_docs)
+
+            # Initialize and perform reranking
+            reranker = Reranker(model_name="ms-marco-MultiBERT-L-12", cache_dir="/opt")
+            reranked_docs = reranker.rerank(query_text, mapped_results)
+
+            # Map the reranked results back to the original structure
+            all_retrieved_docs = map_rerank_qdrant(reranked_docs, all_retrieved_docs)
+
+        except Exception as e:
+            logger.error(f"Reranker failed: {e}")
+            return {
+                "query_response": QueryResponse(
+                    query_text=query_text,
+                    response_text="An error occurred during reranking.",
+                    sources=[],
+                    timestamp=int(time.time())
+                ),
+                "retrieved_docs": [] if DEVELOPMENT_MODE else None
+            }
+
+    # Reconstruct sources for document chunks
     for doc in doc_chunks:
         if not doc.get("source"):
             doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
@@ -302,13 +373,11 @@ async def query_rag(
     # Generate LLM response
     response_text = await generate_llm_response(query_text, all_retrieved_docs, provider)
 
-    # Create the final response
+    # Create final response
     query_response = create_final_response(query_text, response_text, all_retrieved_docs)
 
-    # Return response
     return {
         "query_response": query_response,
         "retrieved_docs": all_retrieved_docs if DEVELOPMENT_MODE else None,
-        "debug_prompt": None  # Include raw prompt if necessary
+        "debug_prompt": None
     }
-
