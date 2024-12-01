@@ -4,12 +4,14 @@
 import openai
 from typing import List
 from .base_embedder import BaseEmbedder
+from .embedder_registry import EmbedderRegistry
 from shared_libs.config.embedding_config import OpenAIEmbeddingConfig
 from shared_libs.utils.logger import Logger
 import tiktoken
 
 logger = Logger.get_logger(module_name=__name__)
 
+@EmbedderRegistry.register('openai')
 class OpenAIEmbedder(BaseEmbedder):
     def __init__(self, config: OpenAIEmbeddingConfig):
         """
@@ -69,3 +71,8 @@ class OpenAIEmbedder(BaseEmbedder):
         except Exception as e:
             logger.error(f"Unexpected error during OpenAI batch embed: {e}")
             return [[] for _ in texts]
+    def vector_size(self) -> int:
+        """
+        Return the vector size from the configuration.
+        """
+        return self.vector_dimension

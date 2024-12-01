@@ -5,11 +5,11 @@ import numpy as np
 from typing import List
 import fastembed  
 from shared_libs.llm_providers import ProviderFactory  
-from shared_libs.config.config_loader import ConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 
 # Load configuration from shared_libs
-config_loader = ConfigLoader()
+config_loader = AppConfigLoader()
 logger = Logger.get_logger(module_name=__name__)
 
 # Load embedding configuration from the global config

@@ -13,14 +13,6 @@ RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target 
 COPY rag_service/api_requirements.txt ${LAMBDA_TASK_ROOT}/api_requirements.txt
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/api_requirements.txt --target /var/lang/lib/python3.12/site-packages
 
-# FOR DEVELOPMENT: Correct the shebang in uvicorn and copy it to /var/lang/bin
-
-# RUN chmod +w /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
-#    sed -i '1s|^#!.*|#!/var/lang/bin/python3|' /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
-#    cp /var/lang/lib/python3.12/site-packages/bin/uvicorn /var/lang/bin/uvicorn && \
-#    chmod +x /var/lang/bin/uvicorn
-
-
 # Install shared libraries into LAMBDA_TASK_ROOT
 COPY shared_libs/ ${LAMBDA_TASK_ROOT}
 RUN pip install -e shared_libs
@@ -28,6 +20,14 @@ RUN pip install -e shared_libs
 # Copy the source code for the Worker handler into LAMBDA_TASK_ROOT
 COPY rag_service/src/ ${LAMBDA_TASK_ROOT}/
 COPY rag_service/src/bin/uvicorn /var/lang/bin
+
+# Ensure Uvicorn's shebang is correctly configured
+RUN if [ -f /var/lang/lib/python3.12/site-packages/bin/uvicorn ]; then \
+        sed -i '1s|^#!.*|#!/var/lang/bin/python3|' /var/lang/lib/python3.12/site-packages/bin/uvicorn && \
+        cp /var/lang/lib/python3.12/site-packages/bin/uvicorn /var/lang/bin/uvicorn && \
+        chmod +x /var/lang/bin/uvicorn; \
+    fi
+
 # Set the working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 

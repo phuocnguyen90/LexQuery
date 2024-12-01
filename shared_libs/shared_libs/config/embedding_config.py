@@ -1,159 +1,54 @@
-# config/embedding_config.py
+# shared_libs/config/embedding_config.py
+from pydantic import BaseModel, Field
+from typing import Dict, Union
+from .provider_registry import ProviderRegistry
 
+class EmbeddingConfig(BaseModel):
+    default_provider: str = Field(..., description="Default provider for embedding service.")
+    mode: str = Field(..., description="Mode of interaction: 'local' or 'api'")
+    api_service_url: str = Field(..., description="Global API URL for embedding service.")
 
-from pydantic import Field, SecretStr, ConfigDict
-from pydantic_settings import BaseSettings
-from typing import Dict, Optional
-from typing_extensions import Literal
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config.config_loader import AppConfigLoader
+    # Providers
+    api_providers: Dict[str, Dict[str, Union[str, int, float]]]
+    library_providers: Dict[str, Dict[str, Union[str, int, float]]]
 
-embedding_config=AppConfigLoader().get('embedding')
+    model_config = {"arbitrary_types_allowed": True}  # To allow arbitrary types if needed
 
-import os
-
-# Base Configuration
-class BaseEmbeddingConfig(BaseSettings):
-    provider: str = Field(..., description="Name of the embedding provider.")
-
-    model_config = ConfigDict(
-        protected_namespaces=('settings_',)  # Redefine protected namespaces
-    )
-
-# Bedrock Configuration
-class BedrockEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['bedrock'] = 'bedrock'
-    model_id: str = Field(..., description="Bedrock model ID.")
-    region_name: str = Field(..., description="AWS region name.")
-    aws_access_key_id: SecretStr = Field(..., description="AWS access key ID.")
-    aws_secret_access_key: SecretStr = Field(..., description="AWS secret access key.")
-    vector_dimension: int = Field(..., description="Vector dimension for the Bedrock embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# Local Embedding Configuration
-class LocalEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['local'] = 'local'
-    model_name: str = Field(..., description="Local model name.")
-    cache_dir: str = Field(..., description="Directory to cache models.")
-    vector_dimension: int = Field(..., description="Vector dimension for the embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# OpenAI Configuration
-class OpenAIEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['openai_embedding'] = 'openai_embedding'
-    model_name: str = Field(..., description="OpenAI model name.")
-    openai_api_key: SecretStr = Field(..., description="OpenAI API key.")
-    vector_dimension: int = Field(..., description="Vector dimension for the OpenAI embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# Google Gemini Configuration
-class GoogleGeminiEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['google_gemini_embedding'] = 'google_gemini_embedding'
-    model_name: str = Field(..., description="Google embedding model name.")
-    google_gemini_api_key: SecretStr = Field(..., description="Google Gemini API key.")
-    vector_dimension: int = Field(..., description="Vector dimension for the Google Gemini embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# Docker Embedding Configuration
-class DockerEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['docker'] = 'docker'
-    service_url: str = Field(..., description="Docker API service URL.")
-    vector_dimension: int = Field(..., description="Vector dimension for the Docker embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# EC2 Embedding Configuration
-class EC2EmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['ec2'] = 'ec2'
-    service_url: str = Field(..., description="EC2 API service URL.")
-    vector_dimension: int = Field(..., description="Vector dimension for the EC2 embedding model.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# GenAI Embedding Configuration
-class GenAIEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['genai'] = 'genai'
-    library: str = Field(..., description="GenAI library path.")
-    function_name: str = Field(..., description="Function name to call for embedding.")
-    vector_dimension: int = Field(..., description="Vector dimension for the GenAI library.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# FastEmbed Configuration
-class FastEmbedEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['fastembed'] = 'fastembed'
-    library_path: str = Field(..., description="FastEmbed library path.")
-    function_name: str = Field(..., description="Function name to call for embedding.")
-    vector_dimension: int = Field(..., description="Vector dimension for the FastEmbed library.")
-    model_config = ConfigDict(protected_namespaces=('settings_',))
-
-# Define other provider-specific configs similarly...
-
-class EmbeddingConfig(BaseSettings):
-    api_providers: Dict[str, BaseEmbeddingConfig] = Field(
-        default_factory=dict,
-        description="API-based embedding providers."
-    )
-    library_providers: Dict[str, BaseEmbeddingConfig] = Field(
-        default_factory=dict,
-        description="Library-based embedding providers."
-    )
-
-    model_config = ConfigDict(protected_namespaces=('settings_',))
 
     @classmethod
-    def from_config_loader(cls):
+    def from_config_loader(cls, config_loader) -> 'EmbeddingConfig':
         """
         Parses the configuration using the ConfigLoader to build embedding configurations.
         """
-        parsed_api_providers = {}
-        parsed_library_providers = {}
+        embedding_section = config_loader.get('embedding', {})
+        api_providers = embedding_section.get('api_providers', {})
+        library_providers = embedding_section.get('library_providers', {})
 
-        api_providers = embedding_config.get('api_providers', {})
-        for provider_name, provider_data in api_providers.items():
-            if provider_name == "bedrock":
-                parsed_api_providers[provider_name] = BedrockEmbeddingConfig(
-                    provider='bedrock',
-                    model_id=provider_data['model_name'],
-                    region_name=provider_data['region_name'],
-                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-                    vector_dimension=provider_data.get('vector_dimension', 1024)  # Default to 1024 if missing
-                )
-            elif provider_name == "openai_embedding":
-                parsed_api_providers[provider_name] = OpenAIEmbeddingConfig(
-                    provider='openai_embedding',
-                    openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-                    model_name=provider_data['model_name'],
-                    vector_dimension=provider_data.get('vector_dimension', 1536)  # Default to 1536
-                )
-            elif provider_name == "google_gemini_embedding":
-                parsed_api_providers[provider_name] = GoogleGeminiEmbeddingConfig(
-                    provider='google_gemini_embedding',
-                    google_gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
-                    model_name=provider_data['model_name'],
-                    vector_dimension=provider_data.get('vector_dimension', 768)  # Default to 768
-                )
-            elif provider_name == "docker":
-                parsed_api_providers[provider_name] = DockerEmbeddingConfig(
-                    provider='docker',
-                    service_url=provider_data['service_url'],
-                    vector_dimension=provider_data.get('vector_dimension', 384)  # Default to 384
-                )
-            elif provider_name == "ec2":
-                parsed_api_providers[provider_name] = EC2EmbeddingConfig(
-                    provider='ec2',
-                    service_url=provider_data['service_url'],
-                    vector_dimension=provider_data.get('vector_dimension', 384)  # Default to 384
-                )
+        return cls(
+            default_provider=embedding_section.get("default_provider", "local"),
+            mode=embedding_section.get("mode", "local"),
+            api_service_url=embedding_section.get("api_service_url", ""),
+            api_providers=api_providers,
+            library_providers=library_providers,
+        )
 
-        library_providers = embedding_config.get('library_providers', {})
-        if 'local' in library_providers:
-            local_config = library_providers['local']
-            parsed_library_providers['local'] = LocalEmbeddingConfig(
-                provider='local',
-                model_name=local_config['model_name'],
-                cache_dir=local_config['cache_dir'],
-                vector_dimension=local_config.get('vector_dimension', 384)  # Default to 384
-            )
+    def load_provider_config(self, provider_name: str):
+        """
+        Dynamically load the configuration dictionary for a provider, 
+        but do not instantiate the embedder class.
+        """
+        # Locate the provider's configuration in either API or library providers
+        provider_config = (
+            self.api_providers.get(provider_name)
+            or self.library_providers.get(provider_name)
+        )
+        
+        if not provider_config:
+            raise ValueError(f"No configuration found for provider '{provider_name}'.")
+        
+        if not isinstance(provider_config, dict):
+            raise TypeError(f"Expected a dictionary for provider configuration, got {type(provider_config).__name__}.")
+        
+        return provider_config
 
-        return cls(api_providers=parsed_api_providers, library_providers=parsed_library_providers)
+

@@ -16,7 +16,7 @@ from hashlib import md5
 from services.intention_detector import IntentionDetector
 
 # Import from shared_libs
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 
 import sys
@@ -170,8 +170,12 @@ class LocalProcessor(Processor):
             # Call the updated query_rag function
             rag_response = await query_rag(query, conversation_history=conversation_history, llm_provider_name=llm_provider_name)
 
-            # Extract query_response and update the QueryModel
+            # Extract query_response
             query_response = rag_response.get("query_response")
+            if not query_response:
+                raise ValueError("query_response is missing from RAG response.")
+
+            # Update the QueryModel with results
             query.answer_text = query_response.response_text
             query.sources = query_response.sources
             query.is_complete = True
@@ -180,7 +184,7 @@ class LocalProcessor(Processor):
             # Save the updated query item
             await query.update_item(query.query_id, query)
 
-            # Return the entire RAG response (including retrieved_docs and debug_prompt if DEVELOPMENT_MODE)
+            # Return the entire RAG response
             return rag_response
 
         except Exception as e:

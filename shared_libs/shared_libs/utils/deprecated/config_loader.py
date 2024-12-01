@@ -6,7 +6,7 @@ import os
 import re
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 from typing_extensions import Literal
 
@@ -88,33 +88,6 @@ class BaseConfigLoader:
         else:
             return obj
 
-# Application Configuration Loader
-class AppConfigLoader(BaseConfigLoader):
-    def __init__(self, config_path: Optional[str] = None, dotenv_path: Optional[str] = None):
-        super().__init__()
-        self._load_environment_variables(dotenv_path)
-        self.config = self._load_yaml_file(config_path or CONFIG_FILE_PATH)
-
-    def get(self, key: str, default=None):
-        return self.config.get(key, default)
-
-# Prompt Configuration Loader
-class PromptConfigLoader(BaseConfigLoader):
-    def __init__(self, prompts_path: Optional[str] = None):
-        super().__init__()
-        self.prompts = self._load_yaml_file(prompts_path or PROMPTS_FILE_PATH)
-
-    def get_prompt(self, prompt_name: str) -> str:
-        return self.prompts.get(prompt_name, "")
-
-# Schema Configuration Loader
-class SchemaConfigLoader(BaseConfigLoader):
-    def __init__(self, schemas_path: Optional[str] = None):
-        super().__init__()
-        self.schemas = self._load_schemas(schemas_path or SCHEMAS_DIR_PATH)
-
-    def get_schema(self, schema_name: str) -> Dict[str, Any]:
-        return self.schemas.get(schema_name, {})
 
 class LLMProviderConfigLoader:
     def __init__(self, config: Dict[str, Any]):
@@ -171,11 +144,11 @@ class BedrockEmbeddingConfig(BaseEmbeddingConfig):
     aws_secret_access_key: SecretStr = Field(..., description="AWS secret access key.")
 
 class LocalEmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['local'] = 'local'
-    embedding_model_name: str = Field(..., description="Local model name.")
+    provider: Literal["local"] = "local"
+    model_name: str = Field(..., description="Local model name.")
     cache_dir: str = Field(..., description="Directory to cache models.")
-    vector_dimension: Optional[int] = Field(None, description="Vector dimension for local models")
-
+    vector_dimension: int = Field(..., description="Vector dimension for the embedding model.")
+   
 class OpenAIEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['openai_embedding'] = 'openai_embedding'
     embedding_model_name: str = Field(..., description="OpenAI model name.")
@@ -216,7 +189,7 @@ class EmbeddingConfig(BaseSettings):
 
 
     @classmethod
-    def from_config_loader(cls, config_loader: AppConfigLoader):
+    def from_config_loader(cls, config_loader: BaseConfigLoader):
         """
         Parses the configuration using the AppConfigLoader to build embedding configurations.
         """
@@ -280,11 +253,15 @@ class EmbeddingConfig(BaseSettings):
 
         # Return the EmbeddingConfig instance
         return cls(api_providers=parsed_api_providers, library_providers=parsed_library_providers)
+    
+    @classmethod
+    def get(self, key: str, default=None):
+        return self.config.get(key, default)
 
 # Example Usage
 if __name__ == "__main__":
     # Initialize the app config loader
-    app_config_loader = AppConfigLoader()
+    app_config_loader = BaseConfigLoader()
     config = app_config_loader.config
 
     # Initialize the embedding config

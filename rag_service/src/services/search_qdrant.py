@@ -1,6 +1,6 @@
 # rag_service/src/services/search_qdrant.py
 
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from typing import List, Dict, Any, Optional
 import re
@@ -8,15 +8,28 @@ import os
 config=AppConfigLoader()
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)
-QDRANT_LOCAL_MODE=os.getenv("QDRANT_LOCAL_MODE", "True")
+
+def str_to_bool(value: str) -> bool:
+    """
+    Converts a string to a boolean.
+
+    Args:
+        value (str): The string to convert.
+
+    Returns:
+        bool: The converted boolean value.
+    """
+    return value.strip().lower() in ('true', '1', 'yes', 'y', 't')
+
+QDRANT_LOCAL_MODE=str_to_bool(os.getenv("QDRANT_LOCAL_MODE", "False"))
 try:
-    from qdrant_init import initialize_qdrant
+    from .qdrant_init import initialize_qdrant
     logger.debug("Qdrant client initialized successfully.")
 except: 
     from services.qdrant_init import initialize_qdrant
     logger.debug("Qdrant client initialized via direct import.")
 # Initialize Qdrant client (default to local for development)
-qdrant_client = initialize_qdrant(QDRANT_LOCAL_MODE)
+qdrant_client = initialize_qdrant()
 
 # default collection to search: QA collection
 QA_COLLECTION_NAME = config.get('qdrant').get("QA_COLLECTION_NAME", "legal_qa")
@@ -34,9 +47,10 @@ async def search_qdrant(
     :param top_k: Number of top similar documents to retrieve.
     :return: List of dictionaries containing all relevant document fields and similarity score.
     """
-    if not embedding_vector:
+    if embedding_vector is None or len(embedding_vector) == 0:
         logger.error("No embedding vector provided for Qdrant search.")
         return []
+
 
     try:
         logger.debug(f"Searching Qdrant for top {top_k} documents in collection '{collection_name}'.")
@@ -153,3 +167,5 @@ def reconstruct_source(source_id: str) -> str:
     except Exception as e:
         logger.error(f"Failed to reconstruct source from source_id '{source_id}': {e}")
         return "Unknown Source"
+
+

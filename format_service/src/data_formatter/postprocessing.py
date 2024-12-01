@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, Tuple
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared_libs.utils.file_handler import read_input_file, output_2_jsonl, load_record
 from validation import load_schema, validate_record, is_english
-from shared_libs.config.config_loader import AppConfigLoader
+from shared_libs.config.app_config import AppConfigLoader
 
 from shared_libs.utils.deprecated.retry_handler import retry
 from llm_formatter import LLMFormatter

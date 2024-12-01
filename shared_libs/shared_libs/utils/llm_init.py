@@ -1,5 +1,5 @@
 # shared_libs\shared_libs\utils\llm_init.py
-from config.config_loader import AppConfigLoader, LLMProviderConfigLoader
+from shared_libs.utils.deprecated.config_loader import AppConfigLoader, LLMProviderConfigLoader
 from shared_libs.llm_providers import ProviderFactory
 
 def initialize_llm_provider():

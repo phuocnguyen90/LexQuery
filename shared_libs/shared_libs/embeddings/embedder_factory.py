@@ -1,47 +1,70 @@
-# src/embeddings/embedder_factory.py
+# shared_libs/embeddings/embedder_factory.py
 
-from shared_libs.config.embedding_config import BaseEmbeddingConfig
+from typing import Dict, Type
 from .base_embedder import BaseEmbedder
-from .bedrock_embedder import BedrockEmbedder
-from .openai_embedder import OpenAIEmbedder
-from .google_gemini_embedder import GoogleGeminiEmbedder
-from .local_embedder import LocalEmbedder
-from .ec2_embedder import EC2Embedder
-from shared_libs.utils.logger import Logger
-from typing import Dict
-
-logger = Logger.get_logger(module_name=__name__)
+from shared_libs.config.embedding_config import EmbeddingConfig
+from shared_libs.config.provider_registry import ProviderRegistry
+import importlib
 
 
 class EmbedderFactory:
-    _embedders: Dict[str, BaseEmbedder] = {}
+    def __init__(self, config: EmbeddingConfig):
+        """
+        Initialize EmbedderFactory with the embedding configuration.
+        """
+        self.config = config
 
-    @staticmethod
-    def create_embedder(config: BaseEmbeddingConfig) -> BaseEmbedder:
-        provider = config.provider.lower()
+    def load_provider_config(self, provider_name: str) -> dict:
+        """
+        Dynamically load the configuration dictionary for a provider.
+        This method does NOT instantiate the provider class.
+        """
+        # Locate the provider's configuration in either API or library providers
+        provider_config = (
+            self.api_providers.get(provider_name)
+            or self.library_providers.get(provider_name)
+        )
+        if not provider_config:
+            raise ValueError(f"No configuration found for provider '{provider_name}'.")
 
-        if provider in EmbedderFactory._embedders:
-            logger.debug(f"Using cached embedder for provider '{provider}'.")
-            return EmbedderFactory._embedders[provider]
+        # Ensure the result is a dictionary
+        if not isinstance(provider_config, dict):
+            raise TypeError(f"Expected a dictionary for provider configuration, got {type(provider_config).__name__}.")
 
+        return provider_config
 
-        elif provider == "bedrock":
-            embedder = BedrockEmbedder(config)
-        elif provider == "openai_embedding":
-            embedder = OpenAIEmbedder(config)
-        elif provider == "google_gemini_embedding":
-            embedder = GoogleGeminiEmbedder(config)
-        elif provider == "local":
-            embedder = LocalEmbedder(config)
-        elif provider == "docker":
-            pass # placeholder
-        elif provider == "ec2":
-            embedder = EC2Embedder(config)
-        else:
-            logger.error(f"Unsupported embedding provider: {provider}")
-            raise ValueError(f"Unsupported embedding provider: {provider}")
+    
+    def create_embedder(self, provider_name: str) -> BaseEmbedder:
+        """
+        Dynamically load the embedder class and create an instance based on the provider name.
 
-        # Cache the embedder instance
-        EmbedderFactory._embedders[provider] = embedder
-        logger.info(f"Initialized and cached embedder for provider '{provider}'.")
-        return embedder
+        Args:
+            provider_name (str): The name of the embedding provider.
+
+        Returns:
+            BaseEmbedder: An instance of the dynamically loaded embedder class.
+        """
+        provider_name = provider_name.lower()
+
+        # Check if the provider is registered
+        if provider_name not in ProviderRegistry._registry:
+            raise ValueError(f"Provider '{provider_name}' is not registered in the ProviderRegistry.")
+
+        # Get the provider configuration
+        provider_config = self.config.load_provider_config(provider_name)
+        if not isinstance(provider_config, dict):
+            raise TypeError(f"Expected a dictionary for provider configuration, got {type(provider_config).__name__}.")
+
+        # Dynamically load the embedder class
+        module_path, class_name = ProviderRegistry._registry[provider_name]
+        try:
+            module = importlib.import_module(module_path)
+            EmbedderClass = getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            raise ImportError(
+                f"Failed to load embedder class '{class_name}' from module '{module_path}': {e}"
+            ) from e
+
+        # Create and return the embedder instance
+        return EmbedderClass(provider_config)
+
