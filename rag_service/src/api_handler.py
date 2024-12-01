@@ -82,7 +82,7 @@ app.add_middleware(
 
 
 # Entry point for AWS Lambda using Mangum
-handler = Mangum(app) if not DEVELOPMENT_MODE else None
+handler = Mangum(app)
 
 # Data models
 class SubmitQueryRequest(BaseModel):

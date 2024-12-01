@@ -16,7 +16,7 @@ from models.query_model import QueryModel
 from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
 from shared_libs.llm_providers import ProviderFactory
-from rag_service.src.services.deprecated.query_rag_v1 import query_rag
+from services.query_rag import query_rag
 
 # Initialize the logger
 logger = Logger().get_logger(module_name=__name__)
@@ -78,18 +78,22 @@ async def handler(event, context):
         )
 
         # Process the query
-        response = await query_rag(query_item, llm_provider_name=llm_provider_name)
+        rag_response = await query_rag(query_item, llm_provider_name=llm_provider_name)
+        query_response = rag_response.get("query_response")
+        if not query_response:
+            raise ValueError("query_response is missing from RAG response.")
 
-        # Prepare the result
-        result = {
-            "query_id": query_id,
-            "response_text": response.response_text,
-            "sources": response.sources,
-            "timestamp": response.timestamp
-        }
+        # Update the query item with the response
+        query_item.answer_text = query_response.response_text
+        query_item.sources = query_response.sources
+        query_item.is_complete = True
+        query_item.timestamp = query_response.timestamp
 
-        logger.info(f"Successfully processed query_id: {query_id}")
-        return json.loads(json.dumps(result))
+        # Save the updated query item
+        await query_item.update_item(query_id, query_item)
+
+        # Return the entire RAG response
+        return rag_response
 
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
