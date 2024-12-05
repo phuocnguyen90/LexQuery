@@ -2,26 +2,20 @@
 
 from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.utils.logger import Logger
+from qdrant_client.http.models import Filter, FieldCondition, MatchAny, MatchText
+
 from typing import List, Dict, Any, Optional
 import re
 import os
+import numpy as np
 config=AppConfigLoader()
 # Configure logging
 logger = Logger.get_logger(module_name=__name__)
 
-def str_to_bool(value: str) -> bool:
-    """
-    Converts a string to a boolean.
 
-    Args:
-        value (str): The string to convert.
+DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
 
-    Returns:
-        bool: The converted boolean value.
-    """
-    return value.strip().lower() in ('true', '1', 'yes', 'y', 't')
-
-QDRANT_LOCAL_MODE=str_to_bool(os.getenv("QDRANT_LOCAL_MODE", "False"))
+QDRANT_LOCAL_MODE= os.getenv("QDRANT_LOCAL_MODE", "False").lower() in ["true", "1", "yes"]
 try:
     from .qdrant_init import initialize_qdrant
     logger.debug("Qdrant client initialized successfully.")
@@ -98,6 +92,106 @@ async def search_qdrant(
     except Exception as e:
         logger.error(f"Error during Qdrant search: {e}")
         return []
+    
+import numpy as np  # Ensure NumPy is imported if used
+
+async def advanced_qdrant_search(
+    embedding_vector: List[float],
+    keywords: List[str],
+    collection_name: Optional[str] = QA_COLLECTION_NAME,
+    top_k: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Perform an advanced search in Qdrant using both embedding vectors and keyword filtering.
+
+    :param embedding_vector: The embedding vector of the query.
+    :param keywords: List of keywords to filter the search results.
+    :param collection_name: The name of the Qdrant collection to search.
+    :param top_k: Number of top similar documents to retrieve.
+    :return: List of dictionaries containing relevant document fields and similarity scores.
+    """
+    # Ensure embedding_vector is a list
+    if isinstance(embedding_vector, np.ndarray):
+        embedding_vector = embedding_vector.tolist()
+    elif not isinstance(embedding_vector, list):
+        logger.error("Embedding vector must be a list or NumPy array.")
+        return []
+
+    if embedding_vector is None or len(embedding_vector) == 0:
+        logger.error("No embedding vector provided for Qdrant search.")
+        return []
+
+    if not isinstance(keywords, list):
+        logger.error("Keywords must be a list.")
+        return []
+
+    if keywords is None or len(keywords) == 0:
+        logger.error("No keywords provided for Qdrant search.")
+        return []
+
+    try:
+        logger.debug(f"Performing advanced search in collection '{collection_name}' with top_k={top_k}.")
+
+        # Construct the filter to match at least one of the keywords in the 'content' field
+        keyword_conditions = [
+            FieldCondition(
+                key="content",
+                match=MatchText(text=keyword)
+            ) for keyword in keywords
+        ]
+
+        combined_filter = Filter(
+            should=keyword_conditions
+        )
+
+        # Perform the search with both embedding and filter
+        search_result = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=embedding_vector,
+            query_filter=combined_filter,  # Corrected parameter name
+            limit=top_k,
+            with_payload=True
+        )
+
+        # Ensure unique results based on record_id
+        unique_results = {}
+        for hit in search_result:
+            record_id = hit.payload.get("record_id", "")
+            if record_id and record_id not in unique_results:
+                unique_results[record_id] = hit
+        search_result = list(unique_results.values())
+
+        # Extract relevant data from the search results
+        results = []
+        for hit in search_result:
+            payload = hit.payload
+            similarity_score = hit.score  # Access similarity score
+            results.append({
+                "record_id": payload.get("record_id", ""),
+                "document_id": payload.get("document_id", ""),
+                "title": payload.get("title", ""),
+                "content": payload.get("content", ""),
+                "chunk_id": payload.get("chunk_id", ""),
+                "source": payload.get("source", ""),
+                "model_info": payload.get("model_info", {}),
+                "similarity_score": similarity_score
+            })
+            # Log details for debugging
+            logger.debug(f"Document ID: {payload.get('record_id', '')}, "
+                         f"Title: {payload.get('title', 'N/A')}, "
+                         f"Similarity Score: {similarity_score:.4f}")
+
+        if results:
+            logger.debug(f"Found {len(results)} documents matching the criteria.")
+        else:
+            logger.warning("No documents found matching the embedding and keyword filters.")
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Error during advanced Qdrant search: {e}")
+        return []
+
     
 def reconstruct_source(source_id: str) -> str:
     """

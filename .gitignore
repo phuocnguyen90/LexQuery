@@ -168,7 +168,6 @@ logs
 template.yaml
 samconfig.toml
 .aws-sam
-.vscode
 localstack
 localstack-setup.sh
 format_service/src/data/raw

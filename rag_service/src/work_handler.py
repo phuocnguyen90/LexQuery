@@ -78,7 +78,11 @@ async def handler(event, context):
         )
 
         # Process the query
-        rag_response = await query_rag(query_item, llm_provider_name=llm_provider_name)
+        rag_response = await query_rag(
+            query_item=query_item,
+            conversation_history=conversation_history,
+            llm_provider_name=llm_provider_name)
+        
         query_response = rag_response.get("query_response")
         if not query_response:
             raise ValueError("query_response is missing from RAG response.")

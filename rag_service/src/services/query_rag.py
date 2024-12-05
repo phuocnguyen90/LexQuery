@@ -15,11 +15,10 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 try:
-    from .search_qdrant import search_qdrant, reconstruct_source
+    from .search_qdrant import search_qdrant, reconstruct_source, advanced_qdrant_search
 
 except:
-    from services.search_qdrant import search_qdrant, reconstruct_source
-
+    from services.search_qdrant import search_qdrant, reconstruct_source, advanced_qdrant_search
 
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory
@@ -62,7 +61,7 @@ class QueryResponse(BaseModel):
     sources: List[str]
     timestamp: int
 
-DEVELOPMENT_MODE = True  # Enable this flag to include retrieved_docs in the response
+DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
 
 def initialize_provider(llm_provider_name: Optional[str] = None) -> Any:
     """
@@ -178,7 +177,84 @@ async def get_relevance_score(query_text: str, doc_content: str, provider: Any) 
             return 5  # Default score if not parsed
     except Exception as e:
         logger.error(f"Failed to get relevance score: {e}")
+
         return 5  # Default score
+    
+async def extract_keywords(
+    query_text: str,
+    provider: Any,
+    top_k: int = 10
+) -> List[str]:
+    """
+    Extract top_k keywords from the user query using the LLM.
+
+    :param query_text: The user's input query.
+    :param provider: The LLM provider instance to interact with.
+    :param top_k: Number of top keywords to extract.
+    :return: List of extracted keywords.
+    """
+    if not query_text:
+        logger.error("No query text provided for keyword extraction.")
+        return []
+
+    if provider is None:
+        logger.error("No LLM provider instance provided.")
+        return []
+
+    try:
+        # Prompt the LLM to extract keywords in JSON format
+        prompt = (
+            f"Extract the top {top_k} keywords from the following question and return them in a JSON array format.\n\n"
+            f"The keywords must:\n"
+            f"- Be in the same language as the question.\n"
+            f"- Prioritize legal terms, concepts, and terminology likely to appear in legal documents, cases, or articles.\n"
+            f"- Avoid overly broad or vague terms unless directly relevant.\n\n"
+            f"Example:\n"
+            f'Question: "thủ tục đăng ký thay đổi người đại diện theo pháp luật của doanh nghiệp?"\n'
+            f'Return: {{"keywords": ["đăng ký kinh doanh", "người đại diện", "luật doanh nghiệp", "giấy phép kinh doanh", "thông tin doanh nghiệp", "đăng ký doanh nghiệp"]}}\n\n'
+            f"Now, extract keywords for the following question:\n"
+            f"Question: \"{query_text}\"\n\n"
+            f"Return the keywords in this format:\n"
+            f'{{"keywords": ["keyword1", "keyword2", "keyword3", ...]}}'
+        )
+
+        logger.debug(f"Sending prompt to LLM for keyword extraction: {prompt}")
+
+        # Send the prompt to the LLM and get the response
+        response = await provider.send_single_message(prompt=prompt)
+
+        # Use regex to extract JSON from the response
+        json_match = re.search(r'(?<=\{).*?(?=\})', response, re.DOTALL)
+        if json_match:
+            json_str = "{" + json_match.group(0) + "}"
+            logger.debug(f"LLM response (JSON extracted): {json_str}")
+            try:
+                keywords_data = json.loads(json_str)
+                keywords = keywords_data.get("keywords", [])
+                if isinstance(keywords, list) and len(keywords) > 0:
+                    logger.debug(f"Extracted Keywords: {keywords}")
+                    return keywords
+                else:
+                    logger.warning("The 'keywords' field is invalid or empty.")
+                    return []
+            except json.JSONDecodeError as je:
+                logger.error(f"Failed to parse JSON from LLM response: {je}")
+                return []
+        else:
+            # If no JSON object is found, log and return fallback
+            logger.warning("No valid JSON found in the LLM response. Falling back to plain text parsing.")
+            list_match = re.findall(r'\b\w+\b', response)
+            if list_match:
+                keywords = list_match[:top_k]
+                logger.debug(f"Extracted Keywords from plain text: {keywords}")
+                return keywords
+            else:
+                logger.warning("No keywords found in the fallback plain text parsing.")
+                return []
+
+    except Exception as e:
+        logger.error(f"Error during keyword extraction: {e}")
+        return []
 
 
 async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], provider: Any) -> str:
@@ -261,11 +337,12 @@ def create_final_response(query_text: str, response_text: str, retrieved_docs: L
 
 async def query_rag(
     query_item,
-    conversation_history: Optional[List],
+    conversation_history: Optional[List] = None,
     provider: Optional[Any] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None,
-    rerank: bool = False
+    rerank: bool = False,
+    keyword_gen: bool=False,
 ) -> Dict[str, Any]:
     """
     Perform Retrieval-Augmented Generation (RAG) to answer the user's query by searching both QA and DOC collections.
@@ -277,6 +354,7 @@ async def query_rag(
         embedding_mode: Mode for embedding ('local' or 'api').
         llm_provider_name: Name of the LLM provider.
         rerank: Whether to apply reranking to the retrieved documents (default False).
+        keyword_gen: Whether to apply keyword generator help retrieve documents (default False).
     
     Returns:
         Dict[str, Any]: RAG response with query_response and retrieved_docs.
@@ -313,14 +391,46 @@ async def query_rag(
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
-    # Retrieve documents
+    # Retrieve documents with or without keyword generation
     QA_COLLECTION_NAME = os.getenv("QA_COLLECTION_NAME", "legal_qa")
     DOC_COLLECTION_NAME = os.getenv("DOC_COLLECTION_NAME", "legal_doc")
-    qa_docs = await search_qdrant(embedding_vector, collection_name=QA_COLLECTION_NAME, top_k=3)
-    doc_chunks = await search_qdrant(embedding_vector, collection_name=DOC_COLLECTION_NAME, top_k=6)
+    all_retrieved_docs = []
 
-    # Combine the results
-    all_retrieved_docs = qa_docs + doc_chunks
+    if keyword_gen:
+        # Extract keywords and use advanced search
+        for attempt in range(2):  # Retry extracting keywords up to 2 times
+            try:
+                logger.debug(f"Attempt {attempt + 1}: Extracting keywords for query: {query_text}")
+                keywords = await extract_keywords(query_text, provider, top_k=10)
+
+                # Ensure keywords is a list and not empty
+                if isinstance(keywords, list) and len(keywords) > 0:
+                    logger.debug(f"Keywords extracted: {keywords}")
+                    qa_docs = await advanced_qdrant_search(
+                        embedding_vector, keywords, collection_name=QA_COLLECTION_NAME, top_k=3
+                    )
+                    doc_chunks = await advanced_qdrant_search(
+                        embedding_vector, keywords, collection_name=DOC_COLLECTION_NAME, top_k=6
+                    )
+                    all_retrieved_docs = qa_docs + doc_chunks
+                    break  # Exit retry loop on success
+                else:
+                    logger.warning("Keyword extraction returned an invalid or empty list.")
+            except Exception as e:
+                logger.error(f"Error during keyword extraction: {e}")
+
+        # Fallback to normal search if keyword generation fails
+        if not all_retrieved_docs:
+            logger.warning("Falling back to normal search_qdrant due to keyword generation failure.")
+            qa_docs = await search_qdrant(embedding_vector, collection_name=QA_COLLECTION_NAME, top_k=3)
+            doc_chunks = await search_qdrant(embedding_vector, collection_name=DOC_COLLECTION_NAME, top_k=6)
+            all_retrieved_docs = qa_docs + doc_chunks
+
+    else:
+        # Normal search without keyword generation
+        qa_docs = await search_qdrant(embedding_vector, collection_name=QA_COLLECTION_NAME, top_k=3)
+        doc_chunks = await search_qdrant(embedding_vector, collection_name=DOC_COLLECTION_NAME, top_k=6)
+        all_retrieved_docs = qa_docs + doc_chunks
 
     # Handle case with no retrieved documents
     if not all_retrieved_docs:
@@ -366,7 +476,7 @@ async def query_rag(
             }
 
     # Reconstruct sources for document chunks
-    for doc in doc_chunks:
+    for doc in all_retrieved_docs:
         if not doc.get("source"):
             doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
 
