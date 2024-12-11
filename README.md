@@ -13,7 +13,9 @@
 
 Whether you’re dealing with thousands of legal documents or delivering answers to users in real time, LexQuery ensures precision, performance, and scalability—all in a single, easy-to-deploy package.
 
-<img src="images/logo.png" alt="Logo" width="300">
+<div align="center">
+  <img src="images/logo.png" alt="Logo" width="300">
+</div>
 
 ## Table of Contents
 1. [Overview](#overview)
@@ -164,7 +166,7 @@ legal_qa_rag/
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/phuocnguyen90/legal_qa_rag.git
+   git clone https://github.com/phuocnguyen90/LexQuery.git
    cd legal_qa_rag
    ```
 
