@@ -1,29 +1,82 @@
-# Legal QA RAG Microservices
+# LexQuery: Legal QA RAG Built for Scalability
 
-## Overview
 
-Legal QA RAG Microservices is a modular, scalable solution designed for Legal Question Answering using Retrieval-Augmented Generation (RAG). It processes legal documents, creates embeddings, and answers user queries in natural language. The system is divided into two main services—**Formatting Service** and **RAG Service**—supported by shared utilities to maximize reusability and reduce redundancy.
+## **Overview**
 
-### **Why Legal QA RAG Microservices?**
+**LexQuery** is an **end-to-end solution** designed to handle the entire lifecycle of legal question answering, from **processing complex legal documents** to deploying an API-ready **chatbot interface**. Built with scalability and modularity in mind, LexQuery streamlines the journey from raw legal text to actionable insights, leveraging a robust architecture tailored for production.
 
-Legal QA RAG Microservices distinguishes itself from other similar projects through several key features and design philosophies:
+### **What Sets LexQuery Apart?**
+- **End-to-End Pipeline**: Seamlessly integrates document ingestion, vector embedding, and API delivery for real-time question answering.
+- **Custom Data Storage**: Optimized for handling large-scale, domain-specific datasets, ensuring high performance and cost efficiency.
+- **Scalable Deployment**: Fully deployed on AWS, leveraging serverless technologies and microservices for maximum reliability and flexibility.
+- **API-Ready Accessibility**: Offers a well-designed API endpoint, enabling developers to integrate LexQuery’s capabilities directly into their applications.
 
-1. **Back-End Focused for Seamless AWS Deployment:**
-   - **Out-of-the-Box AWS Integration:** Designed to run effortlessly on AWS infrastructure, enabling quick and reliable deployment without extensive configuration.
-   - **AWS CDK Infrastructure:** Utilizes AWS Cloud Development Kit (CDK) for defining and provisioning cloud infrastructure, ensuring infrastructure as code practices and easy scalability.
+Whether you’re dealing with thousands of legal documents or delivering answers to users in real time, LexQuery ensures precision, performance, and scalability—all in a single, easy-to-deploy package.
 
-2. **Extremely Low Operational Cost:**
-   - **Cost-Efficient Services:** Most components are built with cost-efficiency in mind, allowing microbusinesses and small-scale operations to leverage the platform without incurring significant expenses.
-   - **AWS Free Tier Compatibility:** Optimized to run on AWS Free Tier services, making it accessible for startups and microbusinesses to deploy and operate without upfront costs.
+<img src="images/logo.png" alt="Logo" width="300">
 
-3. **Modularized Compatibility and Upgradability:**
-   - **Flexible LLM Provider Integration:** Supports various Large Language Model (LLM) providers, including OpenAI, Gemini, Groq, and options for local LLMs, allowing users to choose or switch providers based on their needs.
-   - **HTTP and WebSocket API Support:** Compatible with both HTTP and WebSocket APIs, facilitating seamless integration with a wide range of front-end services and applications.
-   - **Local Inference Capability:** Offers the ability to run local LLMs for on-premises inference, enhancing privacy and reducing dependency on external services.
+## Table of Contents
+1. [Overview](#overview)
+2. [Why LexQuery?](#why-lexquery)
+3. [Features](#features)
+4. [Project Structure](#project-structure)
+5. [Getting Started](#getting-started)
+6. [Usage](#usage)
+7. [Deployment Instructions](#deployment-instructions)
+8. [Contributing](#contributing)
 
-4. **Optimized Data Formatter for Legal QA:**
-   - **Tailored Data Processing:** Includes a basic data formatter optimized specifically for legal question answering, focusing on processing FAQs, legal documents, and citation sources to ensure accurate and relevant responses.
-   - **Structured Data Handling:** Efficiently transforms raw legal texts into structured formats, enhancing the quality of embeddings and retrieval processes.
+### **Why LexQuery?**
+
+This project addresses one of the most overlooked but critical challenges in the world of Retrieval-Augmented Generation (RAG): implementing a robust RAG pipeline for **non-English languages**, specifically tailored to the complexities of **Vietnamese legal texts**, in a **production environment**. Here's why this project deserves your attention out of the thousands of prebuilt RAG solutions available:
+
+---
+
+### **Localized Support for Vietnamese Context**
+- **Beyond Prebuilt Solutions:** While prebuilt RAG packages excel in general-purpose use cases, they fall short when handling non-English languages like Vietnamese. The unique structure, grammar, and terminology of Vietnamese legal documents demand specialized preprocessing and language model fine-tuning.
+- **Domain-Specific Expertise:** LexQuery is built specifically for the **Vietnamese legal domain**, focusing on handling long legal documents, forms, and regulations with precision. This focus ensures that responses are not just linguistically accurate but also legally relevant.
+
+---
+
+### **Designed for Production Challenges**
+- **Real-World Constraints:** Many existing solutions work well in theory but struggle when scaled to production. LexQuery’s modular design directly addresses the challenges of scaling a RAG system in a resource-constrained environment while maintaining high performance and accuracy.
+- **Localized Data Ecosystem:** By integrating with cost-effective and privacy-conscious infrastructure, LexQuery ensures that legal professionals and SMEs in Vietnam can rely on a dependable system tailored to their needs.
+
+---
+
+### **Innovative Technical Design**
+1. **Custom Preprocessing for Vietnamese Texts:**
+   - Handles unique grammatical constructs and tones to ensure high-quality embeddings.
+   - Optimized for the nested and citation-heavy structure of Vietnamese legal documents.
+
+2. **Advanced Retrieval Mechanisms:**
+   - Employs Qdrant as a vector database for accurate and fast retrieval.
+   - Fine-tuned models bridge the gap between global LLMs and local language nuances.
+
+3. **Seamless Integration of LLMs:**
+   - Supports multiple providers, including on-premise options, to ensure flexibility in deployment.
+
+---
+
+### **Cost-Effective and Scalable**
+- **Built for SMEs and Startups:** LexQuery is optimized for low operational costs, leveraging **AWS Free Tier** services and local processing capabilities.
+- **Privacy First:** Offers local inference options, which are critical for handling sensitive legal data securely.
+
+---
+
+### **LexQuery in Action**
+Unlike generic RAG solutions, LexQuery is built from the ground up to address:
+1. **Language-Specific Barriers:** High-quality Vietnamese embeddings and structured data handling for legal texts.
+2. **Economic Scalability:** Deployable on cost-effective infrastructure without sacrificing accuracy or speed.
+3. **Real-World Usability:** Provides legal professionals with precise, domain-specific answers, reducing manual workload and improving decision-making.
+
+---
+
+### **Why It Matters**
+
+
+LexQuery isn’t about reinventing RAG technology—it’s about adapting proven designs, like those found in frameworks such as LangChain, to meet the **specific, underserved needs of startups** working with **Vietnamese legal content**. By focusing on the **niche challenges** of **linguistic complexity**, **document scalability**, and **cost-effective deployment**, LexQuery bridges the gap between general-purpose RAG systems and the practical requirements of SMEs.
+
+This project is built for those who need a robust, scalable pipeline to handle **localized legal documents** with minimal overhead. LexQuery’s approach provides a tailored solution for businesses navigating the complexities of integrating modern AI into their workflows—without the need for extensive customization or massive budgets.
 
 ## Project Structure
 
@@ -38,11 +91,22 @@ legal_qa_rag/
     |- README.md                 # Project overview and instructions
 ```
 
-## Main Components
+
+
+## **Main Components**
 
 - **Format Service:**
   - **Functionality:** Preprocesses raw legal text into structured chunks and stores them in a database.
   - **Capabilities:** Handles text in various forms (raw, structured, or semi-structured), ensuring that data is optimized for efficient retrieval and embedding creation.
+
+- **Embedding Service:**
+  - **Functionality:** Handles a singular endpoint for converting text into vector embeddings and coordinates with the embedding server for efficient RAG retrieval.
+  - **Capabilities:** 
+    - Modular design supports multiple embedding methods, including:
+      - **API-based services**: AWS Bedrock, OpenAI.
+      - **Local embedding models**: FastEmbed, SentenceTransformer.
+    - Allows customizable embedding models to suit domain-specific needs.
+  - **Special Feature:** Its modularity ensures flexibility to integrate new embedding solutions without disrupting the core pipeline.
 
 - **RAG Service:**
   - **Functionality:** Utilizes Retrieval-Augmented Generation to answer user queries by combining document retrieval and LLM-based generation.
@@ -51,6 +115,7 @@ legal_qa_rag/
 - **Shared Libraries:**
   - **Purpose:** Provides shared components and utilities such as configuration loaders, LLM provider management, embedding creation tools, and prompting templates.
   - **Benefits:** Enhances reusability across services and reduces redundancy, streamlining development and maintenance.
+
 
 ## Features
 
