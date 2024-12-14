@@ -327,8 +327,8 @@ def process_folder(input_folder, output_folder):
 
 
 
-input_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP'
-output_folder=r'format_service\src\data\preprocessed\1. DOANH NGHIỆP\simplified'
+input_folder=r'format_service\src\data\preprocessed'
+output_folder=r'format_service\src\data\preprocessed\simplified'
 
 
 if __name__ == "__main__":

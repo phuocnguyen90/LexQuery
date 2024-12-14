@@ -1,3 +1,7 @@
+# ----------------------------
+# Module to chunk legal documents into smaller chunks and save as JSON files
+# ----------------------------
+
 import os
 import re
 import json

@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, Optional, Union
 from shared_libs.models.record_model import Record
 from llm_formatter import LLMFormatter
-from validation import detect_text_type
+from format_service.src.qa_formatter.validation import detect_text_type
 
 
 # Configure logging
