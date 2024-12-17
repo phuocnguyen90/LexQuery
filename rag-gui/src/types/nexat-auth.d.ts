@@ -1,22 +1,27 @@
+// src/types/next-auth.d.ts
+
 import NextAuth from "next-auth"
 
 declare module "next-auth" {
   interface User {
     id: string
-    role?: string
+    role: Role
+    subscription?: {
+      tier: SubscriptionTier
+      status: SubscriptionStatus
+    }
   }
 
   interface Session {
     user?: {
       id: string
-      name?: string
-      role?: string
+      name?: string | null
+      email?: string | null
+      role: Role
+      subscription?: {
+        tier: SubscriptionTier
+        status: SubscriptionStatus
+      }
     }
   }
-
-  // Optionally, extend JWT if needed
-  // interface JWT {
-  //   id?: string
-  //   role?: string
-  // }
 }

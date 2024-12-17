@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from "next/link"
 import { useSession, signIn, signOut } from "next-auth/react"
@@ -15,12 +15,14 @@ export default function NavBar() {
         <div className="space-x-4">
           <Link href="/chat" className="text-gray-300 hover:text-white">Chat</Link>
           <Link href="/profile" className="text-gray-300 hover:text-white">Profile</Link>
-          {status === "loading" ? (
-            <span className="text-gray-300">Loading...</span>
-          ) : session ? (
+          {!session && (
+            <>
+              <Link href="/register" className="text-gray-300 hover:text-white">Register</Link>
+              <button onClick={() => signIn()} className="text-gray-300 hover:text-white">Sign In</button>
+            </>
+          )}
+          {session && (
             <button onClick={() => signOut()} className="text-gray-300 hover:text-white">Sign Out</button>
-          ) : (
-            <button onClick={() => signIn()} className="text-gray-300 hover:text-white">Sign In</button>
           )}
         </div>
       </div>
