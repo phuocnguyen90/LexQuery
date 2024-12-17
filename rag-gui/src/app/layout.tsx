@@ -1,27 +1,23 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import './globals.css'
+import type { Metadata } from 'next'
 import { ReactNode } from 'react'
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import NavBar from "@/components/NavBar"
+import Provider from "@/components/Provider"
 
 export const metadata: Metadata = {
   title: 'My RAG App',
-  description: 'Using Next.js App Router and NextAuth',
+  description: 'A sophisticated RAG pipeline interface with authentication and roles',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Provider>
+          <NavBar />
+          {children}
+        </Provider>
+      </body>
     </html>
   )
 }

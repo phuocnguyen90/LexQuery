@@ -2,10 +2,12 @@
 
 import { useState, FormEvent } from "react"
 import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export default function SignInPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const router = useRouter()
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -14,15 +16,15 @@ export default function SignInPage() {
       username,
       password
     })
-    if (!result?.error) {
-      window.location.href = '/'
+    if (result && !result.error) {
+      router.push('/')
     } else {
       alert("Invalid credentials")
     }
   }
 
   return (
-    <main className="max-w-sm mx-auto mt-10">
+    <main className="max-w-sm mx-auto mt-10 p-4">
       <h1 className="text-2xl mb-4">Sign In</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <input 
@@ -40,7 +42,8 @@ export default function SignInPage() {
         />
         <button 
           type="submit"
-          className="bg-blue-500 text-white px-4 py-2"
+          className="bg-blue-500 text-white px-4 py-2 w-full"
+          disabled={!username || !password}
         >
           Sign In
         </button>
