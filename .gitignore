@@ -161,6 +161,9 @@ cython_debug/
 #.idea/
 *.json
 *.pem
+*.doc
+*.docx
+*.pdf
 .github
 local_data
 logs
@@ -171,3 +174,5 @@ samconfig.toml
 localstack
 localstack-setup.sh
 format_service/src/data/raw
+/memo
+/format_service/src/txtbook_formatter/results

@@ -82,7 +82,7 @@ async def get_query_endpoint(query_id: str):
         return {
             "query_id": query.query_id,
             "query_text": query.query_text,
-            "answer_text": query.answer_text,
+            "response_text": query.response_text,
             "is_complete": query.is_complete,
             "sources": query.sources,
         }
@@ -110,7 +110,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
             logger.info(f"Cache hit for query_id: {query_id}")
             return SubmitQueryResponse(
                 query_id=existing_query.query_id,
-                response_text=existing_query.answer_text,
+                response_text=existing_query.response_text,
                 sources=existing_query.sources,
                 timestamp=existing_query.timestamp
             )
@@ -125,7 +125,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
         )
 
         # Step 3: Update and Save the QueryModel with the Response
-        query_item.answer_text = response.response_text
+        query_item.response_text = response.response_text
         query_item.sources = response.sources
         query_item.is_complete = True
         query_item.timestamp = response.timestamp

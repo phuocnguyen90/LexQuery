@@ -328,3 +328,32 @@ class InputProcessor:
             chunks.append(current_chunk.strip())
 
         return chunks
+
+def _chunk_text_by_page(self, text: str, max_words: int = 300) -> List[str]:
+        """
+        Chunk the unformatted text into smaller parts based on the max_words threshold.
+
+        :param text: The unformatted input text.
+        :param max_words: Maximum number of words per chunk.
+        :return: A list of text chunks.
+        """
+        paragraphs = text.split('\n\n')  # Split by double newlines to get paragraphs
+        chunks = []
+        current_chunk = ""
+
+        for paragraph in paragraphs:
+            word_count = len(paragraph.split())
+            if word_count == 0:
+                continue  # Skip empty paragraphs
+
+            if len(current_chunk.split()) + word_count <= max_words:
+                current_chunk += f"\n\n{paragraph}" if current_chunk else paragraph
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = paragraph  # Start a new chunk
+
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+
+        return chunks

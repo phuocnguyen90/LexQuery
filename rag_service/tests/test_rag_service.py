@@ -47,7 +47,7 @@ def test_submit_query_endpoint(mock_put_item, mock_query_rag):
     )
     response = client.post("/submit_query", json={"query_text": mock_query_text})
     assert response.status_code == 200
-    assert response.json()["answer_text"] == mock_query_response
+    assert response.json()["response_text"] == mock_query_response
     assert response.json()["sources"] == ["source1", "source2"]
 
 @patch("src.rag.query_rag.search_qdrant")

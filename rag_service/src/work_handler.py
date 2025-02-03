@@ -88,7 +88,7 @@ async def handler(event, context):
             raise ValueError("query_response is missing from RAG response.")
 
         # Update the query item with the response
-        query_item.answer_text = query_response.response_text
+        query_item.response_text = query_response.response_text
         query_item.sources = query_response.sources
         query_item.is_complete = True
         query_item.timestamp = query_response.timestamp
@@ -97,7 +97,11 @@ async def handler(event, context):
         await query_item.update_item(query_id, query_item)
 
         # Return the entire RAG response
-        return rag_response
+        serializable_response = {
+            **rag_response,
+            "query_response": rag_response["query_response"].dict()  # convert to dict
+        }
+        return serializable_response
 
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
@@ -131,7 +135,7 @@ async def process_direct_invocation(payload):
         response = await query_rag(query_item, provider=provider, conversation_history=conversation_history)
         
         # Update the query item with the response
-        query_item.answer_text = response.response_text
+        query_item.response_text = response.response_text
         query_item.sources = response.sources
         query_item.is_complete = True
         query_item.timestamp = response.timestamp 
@@ -144,7 +148,7 @@ async def process_direct_invocation(payload):
         # Return the result
         return {
             "query_id": query_id,
-            "response_text": query_item.answer_text,
+            "response_text": query_item.response_text,
             "sources": query_item.sources,
             "timestamp": query_item.timestamp
         }
@@ -213,7 +217,7 @@ async def process_sqs_records(message):
         )
 
         # Update the query item with the response
-        query_item.answer_text = response.response_text
+        query_item.response_text = response.response_text
         query_item.sources = response.sources
         query_item.is_complete = True
         query_item.timestamp = response.timestamp  

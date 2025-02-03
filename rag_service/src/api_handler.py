@@ -113,13 +113,18 @@ class LambdaWorkerProcessor(Processor):
             logger.debug(f"Invoking worker lambda synchronously with payload: {message_body}")
 
             # Invoke the worker lambda synchronously
-            response = self.lambda_client.invoke(
+            rag_response = self.lambda_client.invoke(
                 FunctionName=self.worker_lambda_name,
                 InvocationType="RequestResponse",  # Synchronous invocation
                 Payload=message_body.encode('utf-8'),
             )
-            # Read and decode the response payload
-            response_payload = json.loads(response['Payload'].read().decode('utf-8'))
+            query_response = rag_response.get("query_response")
+            response_payload = {
+                "query_id": query.query_id,
+                "response_text": query_response["response_text"],
+                "sources": query_response["sources"],
+                "timestamp": query_response["timestamp"]
+            }
             logger.debug(f"Worker lambda response: {response_payload}")
             return response_payload
         except Exception as e:
@@ -176,13 +181,15 @@ class LocalProcessor(Processor):
                 raise ValueError("query_response is missing from RAG response.")
 
             # Update the QueryModel with results
-            query.answer_text = query_response.response_text
+            query.response_text = query_response.response_text
             query.sources = query_response.sources
             query.is_complete = True
             query.timestamp = query_response.timestamp
 
             # Save the updated query item
             await query.update_item(query.query_id, query)
+
+            rag_response["query_response"] = query_response.dict()
 
             # Return the entire RAG response
             return rag_response
@@ -215,7 +222,7 @@ async def get_query_endpoint(query_id: str):
         return {
             "query_id": query.query_id,
             "query_text": query.query_text,
-            "answer_text": query.answer_text,
+            "response_text": query.response_text,
             "is_complete": query.is_complete,
             "sources": query.sources,
             "timestamp": query.timestamp
@@ -257,7 +264,7 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
             logger.info(f"Cache hit for query_id: {query_id}")
             return {
                 "query_id": existing_query.query_id,
-                "response_text": existing_query.answer_text,
+                "response_text": existing_query.response_text,
                 "sources": existing_query.sources,
                 "timestamp": existing_query.timestamp
             }
@@ -274,9 +281,9 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
 
         response_payload = {
             "query_id": query_id,
-            "response_text": query_response.response_text,
-            "sources": query_response.sources,
-            "timestamp": query_response.timestamp
+            "response_text": query_response["response_text"],
+            "sources": query_response["sources"],
+            "timestamp": query_response["timestamp"]
         }
 
         if DEVELOPMENT_MODE:
