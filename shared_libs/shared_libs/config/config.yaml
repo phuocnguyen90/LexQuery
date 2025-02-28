@@ -41,9 +41,14 @@ embedding:
   # Library Function-based Embedding Providers
   library_providers:
     local:
-      model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+      # small
+      # model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+      # cache_dir: "/app/models"
+      # vector_dimension: 384
+      # large
+      model_name: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
       cache_dir: "/app/models"
-      vector_dimension: 384
+      vector_dimension: 768
     fastembed:
       library_path: "/app/libraries/fastembed.py"
       function_name: "generate_embedding"
@@ -106,8 +111,8 @@ qdrant:
     api_key: "${QDRANT_API_KEY}"  # Optional if local is True
     url: "${QDRANT_URL}"          # Optional if local is True
   collection_names:
-    qa_collection: "legal_qa"
-    doc_collection: "legal_doc"
+    qa_collection: "legal_qa_768"
+    doc_collection: "legal_doc_768"
   distance_metric: "cosine"
   local: false  
 

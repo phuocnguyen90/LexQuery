@@ -10,7 +10,7 @@ from hashlib import md5
 import os
 import sys
 # Add the `/var/task` directory and its subdirectories to `sys.path`
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from models.query_model import QueryModel
 from shared_libs.config.app_config import AppConfigLoader
@@ -53,64 +53,72 @@ sqs_client = boto3.client(
 
 async def handler(event, context):
     """
-    Lambda handler function to process the query and return the result.
+    Asynchronous Lambda handler that processes the query,
+    calls the RAG function, and returns a JSON-serializable response.
     """
     try:
-        if 'Records' in event:
-            # If invoked via SQS, process messages from SQS (not expected in this design)
-            logger.error("Received event with 'Records', but expected direct invocation.")
-            return {"error": "Unexpected event format."}
-
-        # Direct invocation
+        # Expect the event to contain at least the query_id and query_text.
         payload = event
+
         query_id = payload.get('query_id')
         if not query_id:
             logger.error("No query_id found in payload.")
             return {"error": "No query_id found in payload."}
 
+        query_text = payload.get('query_text')
+        if not query_text:
+            logger.error("No query_text provided in payload.")
+            return {"error": "No query_text provided."}
+
         conversation_history = payload.get('conversation_history', [])
         llm_provider_name = payload.get('llm_provider')
 
+        # Build the QueryModel instance from the event data.
         query_item = QueryModel(
             query_id=query_id,
-            query_text=payload.get('query_text'),
+            query_text=query_text,
             conversation_history=conversation_history
         )
 
-        # Process the query
+        # Process the query using your query_rag function.
         rag_response = await query_rag(
             query_item=query_item,
             conversation_history=conversation_history,
-            llm_provider_name=llm_provider_name)
-        
+            llm_provider_name=llm_provider_name
+        )
+
+        # Verify that a query_response was returned.
         query_response = rag_response.get("query_response")
-        if not query_response:
+        if query_response is None:
             raise ValueError("query_response is missing from RAG response.")
 
-        # Update the query item with the response
-        query_item.response_text = query_response.response_text
-        query_item.sources = query_response.sources
-        query_item.is_complete = True
-        query_item.timestamp = query_response.timestamp
+        # Convert the Pydantic model (QueryResponse) to a dictionary.
+        serializable_query_response = query_response.dict()
 
-        # Save the updated query item
-        await query_item.update_item(query_id, query_item)
+        # Build the final response ensuring that all fields are JSON serializable.
+        final_response = {"query_response": serializable_query_response}
 
-        # Return the entire RAG response
-        serializable_response = {
-            **rag_response,
-            "query_response": rag_response["query_response"].dict()  # convert to dict
-        }
-        return serializable_response
+        # Optionally include the retrieved_docs if present and in development mode.
+        if DEVELOPMENT_MODE and "retrieved_docs" in rag_response:
+            final_response["retrieved_docs"] = rag_response["retrieved_docs"]
+
+        # Optionally include a debug prompt if present.
+        if "debug_prompt" in rag_response:
+            final_response["debug_prompt"] = rag_response["debug_prompt"]
+
+        return final_response
 
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
+        # Return an error response that is JSON serializable.
         return {"error": str(e)}
 
-# For AWS Lambda, the handler should be the entry point
 def lambda_handler(event, context):
-    response = asyncio.run(handler(event, context))
-    return response
+    """
+    Synchronous entrypoint for AWS Lambda.
+    """
+    return asyncio.run(handler(event, context))
+
 
 
 async def process_direct_invocation(payload):

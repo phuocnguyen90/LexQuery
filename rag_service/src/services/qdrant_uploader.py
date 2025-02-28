@@ -27,7 +27,6 @@ factory = EmbedderFactory(embedding_config)
 # Configure logging using Logger from shared_libs
 logger = Logger.get_logger(module_name=__name__)
 
-# Initialize the embedding function using Bedrock
 embedding_function = factory.create_embedder('local')  
 from qdrant_init import initialize_qdrant
 # Initialize Qdrant client (default to local for development)
@@ -258,8 +257,8 @@ def validate_jsonl(file_path: str):
 if __name__ == "__main__":
     import sys
     import os
-    QA_COLLECTION_NAME = 'legal_qa'
-    DOC_COLLECTION_NAME='legal_doc'
+    QA_COLLECTION_NAME = 'legal_qa_768'
+    DOC_COLLECTION_NAME='legal_doc_768'
 
     # Default values for testing in VS Code
     file_path = r"C:\Users\PC\git\legal_qa_rag\format_service\src\data\preprocessed\preprocessed_data.jsonl" 
