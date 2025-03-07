@@ -346,7 +346,7 @@ async def query_rag(
                 response_text="An error occurred while creating embedding.",
                 sources=[],
                 timestamp=int(time.time())
-            ),
+            ).model_dump(),
             "retrieved_docs": [] if DEVELOPMENT_MODE else None
         }
 
@@ -400,7 +400,7 @@ async def query_rag(
             timestamp=int(time.time())
         )
         return {
-            "query_response": query_response,
+            "query_response": query_response.model_dump(),
             "retrieved_docs": [] if DEVELOPMENT_MODE else None,
             "keywords": extracted_keywords,
             "rerank_applied": False,
@@ -423,7 +423,7 @@ async def query_rag(
                     response_text="An error occurred during reranking.",
                     sources=[],
                     timestamp=int(time.time())
-                ),
+                ).model_dump(),
                 "retrieved_docs": [] if DEVELOPMENT_MODE else None,
                 "keywords": extracted_keywords,
                 "rerank_applied": False,
@@ -437,7 +437,7 @@ async def query_rag(
     query_response = create_final_response(query_text, response_text, all_retrieved_docs)
 
     return {
-        "query_response": query_response,
+        "query_response": query_response.model_dump(),
         "retrieved_docs": all_retrieved_docs if DEVELOPMENT_MODE else None,
         "debug_prompt": None,
         "keywords": extracted_keywords,

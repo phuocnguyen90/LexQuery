@@ -18,10 +18,10 @@ DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1
 QDRANT_LOCAL_MODE= os.getenv("QDRANT_LOCAL_MODE", "False").lower() in ["true", "1", "yes"]
 try:
     from .qdrant_init import initialize_qdrant
-    logger.debug("Qdrant client initialized successfully.")
+    # logger.debug("Qdrant client initialized successfully via direct import.")
 except: 
     from services.qdrant_init import initialize_qdrant
-    logger.debug("Qdrant client initialized via direct import.")
+    # logger.debug("Qdrant client initialized via absolute import.")
 # Initialize Qdrant client (default to local for development)
 qdrant_client = initialize_qdrant()
 

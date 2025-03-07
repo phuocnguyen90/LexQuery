@@ -135,10 +135,8 @@ class LambdaWorkerProcessor(Processor):
                 response_payload = json.loads(payload_str)
             except json.JSONDecodeError as jde:
                 self.logger.error(f"JSON decode error: {jde}; raw payload: {payload_str}")
-                self.logger.info(f"Worker lambda parsed response payload: {response_payload}")
-                raise Exception("Failed to parse JSON from worker lambda response.")
 
-            
+                raise Exception("Failed to parse JSON from worker lambda response.")
 
             # If the worker returned an error, raise an exception.
             if "error" in response_payload:
@@ -152,16 +150,18 @@ class LambdaWorkerProcessor(Processor):
                 self.logger.info(f"Worker lambda response: {response_payload}")
                 raise Exception("Worker lambda did not return a valid query_response.")
 
-            # Build the final response payload as expected by the API.
-            response_payload_final = {
+            # Build the flat response payload.
+            json_response = {
                 "query_id": query.query_id,
                 "response_text": query_response.get("response_text"),
                 "sources": query_response.get("sources"),
                 "timestamp": query_response.get("timestamp")
             }
 
-            self.logger.info(f"Final worker lambda response: {response_payload_final}")
-            return response_payload_final
+            self.logger.info(f"Final worker lambda response: {json_response}")
+
+            # Wrap it in a 'query_response' key for consistency.
+            return {"query_response": json_response}
 
         except Exception as e:
             self.logger.error(f"Failed to invoke worker lambda synchronously: {str(e)}")
@@ -211,21 +211,19 @@ class LocalProcessor(Processor):
             rag_response = await query_rag(query, conversation_history=conversation_history, 
                                            llm_provider_name=llm_provider_name)
 
-            # Extract query_response
+            # Extract the nested query_response dictionary
             query_response = rag_response.get("query_response")
             if not query_response:
-                raise ValueError("query_response is missing from RAG response.")
+                raise ValueError("Missing query_response in rag_response.")
 
-            # Update the QueryModel with results
-            query.response_text = query_response.response_text
-            query.sources = query_response.sources
+            # Update the QueryModel with results extracted from the query_response
+            query.response_text = query_response.get("response_text")
+            query.sources = query_response.get("sources")
             query.is_complete = True
-            query.timestamp = query_response.timestamp
+            query.timestamp = query_response.get("timestamp")
 
             # Save the updated query item
             await query.update_item(query.query_id, query)
-
-            rag_response["query_response"] = query_response.dict()
 
             # Return the entire RAG response
             return rag_response
@@ -319,12 +317,12 @@ async def submit_query_endpoint(request: SubmitQueryRequest):
             logger.debug(f"Worker lambda response: {rag_response}")
             raise HTTPException(status_code=500, detail="Worker lambda did not return a valid rag_response.")
         
-
+        query_response = rag_response.get("query_response", {})
         response_payload = {
             "query_id": query_id,
-            "response_text": rag_response.get("response_text"),
-            "sources": rag_response.get("sources"),
-            "timestamp": rag_response.get("timestamp")
+            "response_text": query_response.get("response_text"),
+            "sources": query_response.get("sources"),
+            "timestamp": query_response.get("timestamp")
         }
         # Optionally include development-only information.
         if DEVELOPMENT_MODE:

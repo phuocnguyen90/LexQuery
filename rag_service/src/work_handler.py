@@ -92,11 +92,8 @@ async def handler(event, context):
         if query_response is None:
             raise ValueError("query_response is missing from RAG response.")
 
-        # Convert the Pydantic model (QueryResponse) to a dictionary.
-        serializable_query_response = query_response.dict()
-
         # Build the final response ensuring that all fields are JSON serializable.
-        final_response = {"query_response": serializable_query_response}
+        final_response = {"query_response": query_response}
 
         # Optionally include the retrieved_docs if present and in development mode.
         if DEVELOPMENT_MODE and "retrieved_docs" in rag_response:

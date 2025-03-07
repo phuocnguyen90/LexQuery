@@ -58,7 +58,7 @@ class Logger:
         if not self.logger.hasHandlers():
             # Standard formatter for normal logs (developer-oriented)
             formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s (Source Module: %(source_module)s)"
+            "%(asctime)s [%(levelname)s] %(source_module)s: %(message)s"
             )
 
             # Console handler with UTF-8 encoding

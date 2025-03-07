@@ -116,6 +116,6 @@ def initialize_qdrant():
 
 
 # Example Usage
-if __name__ == "__main__":
-    qdrant_client = initialize_qdrant()
-    logger.info("Qdrant client initialized successfully.")
+# if __name__ == "__main__":
+#     qdrant_client = initialize_qdrant()
+#     logger.info("Qdrant client initialized successfully.")
