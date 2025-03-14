@@ -4,7 +4,7 @@ from .app_config import AppConfigLoader
 from .embedding_config import EmbeddingConfig
 from .llm_config import LLMConfig
 from .prompt_config import PromptConfigLoader
-from .qdrant_config import QdrantConfig  # Assuming you have this
+from .qdrant_config import QdrantConfig  
 from typing import Optional
 
 class Config:

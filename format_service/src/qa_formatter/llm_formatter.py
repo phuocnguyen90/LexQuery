@@ -4,11 +4,12 @@ import logging
 import json
 import yaml
 from typing import Optional, Dict, Any
-from providers import ProviderFactory  
-from providers.openai_provider import OpenAIProvider
-from providers.groq_provider import GroqProvider
-from providers.api_provider import APIProvider
-from utils.validation import detect_text_type, is_english
+from shared_libs.llm_providers import ProviderFactory  
+from shared_libs.llm_providers.llm_provider import LLMProvider
+
+from shared_libs.llm_providers.groq_provider import GroqProvider
+
+from validation import detect_text_type, is_english
 # from utils.record import Record
 # logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class LLMFormatter:
             logger.error(f"Unexpected error loading prompts '{prompts_path}': {e}")
             raise
 
-    def _initialize_provider(self) -> APIProvider:
+    def _initialize_provider(self) -> LLMProvider:
         """
         Initialize the API provider based on the configuration.
 
@@ -191,7 +192,7 @@ class LLMFormatter:
             return None
 
     
-    def _initialize_provider_override(self, provider: str) -> APIProvider:
+    def _initialize_provider_override(self, provider: str) -> LLMProvider:
         """
         Initialize a different provider on the fly.
 

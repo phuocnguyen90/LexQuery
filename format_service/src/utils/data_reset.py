@@ -33,11 +33,11 @@ def reset_collection(collection_name: str):
         # Optionally recreate the collection (if needed)
         recreate = input(f"Do you want to recreate the collection '{collection_name}'? (yes/no): ").strip().lower()
         if recreate == 'yes':
-            vector_size = 384  # Example vector size; update based on your model
+            vector_dimension = 384  # Example vector size; update based on your model
             client.create_collection(
                 collection_name=collection_name,
                 vectors_config={
-                    "size": vector_size,
+                    "size": vector_dimension,
                     "distance": "Cosine"  # Update distance metric if necessary
                 }
             )

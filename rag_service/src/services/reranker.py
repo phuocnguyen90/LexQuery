@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 from flashrank import Ranker, RerankRequest
 from shared_libs.utils.logger import Logger
 
-logger = Logger.get_logger(module_name=__name__)
+logger = Logger.get_logger(module_name="Reranker")
 
 class Passage:
     def __init__(self, id: str, text: str, meta: Dict[str, Any] = None):
@@ -32,61 +32,143 @@ class Passage:
         else:
             raise KeyError(f"Invalid key '{item}' for Passage.")
 
-
 class Reranker:
-    def __init__(self, model_name: str = "ms-marco-MultiBERT-L-12", cache_dir: str = "/opt", max_length: int = 128):
-        try:
+    def __init__(self, method: str = "flashrank", **kwargs):
+        """
+        Initialize the Reranker with a chosen method.
+        
+        Supported methods:
+          - "flashrank": Uses the flashrank library.
+          - "crossencoder": Uses a cross encoder model via HuggingFace Transformers.
+          - "cohere": Uses Cohere's ranking API.
+          
+        Additional kwargs:
+          For flashrank:
+            - model (default "ms-marco-MultiBERT-L-12")
+            - cache_dir (default "/opt")
+            - max_length (default 128)
+          For crossencoder:
+            - model (default "bkai-foundation-models/vietnamese-bi-encoder")
+          For cohere:
+            - api (API key)
+            - model (model name)
+        """
+        self.method = method.lower()
+        self.kwargs = kwargs
+        
+        if self.method == "flashrank":
+            if Ranker is None:
+                raise ImportError("flashrank is not installed.")
+            model_name = kwargs.get("model", "ms-marco-MultiBERT-L-12")
+            cache_dir = kwargs.get("cache_dir", "/opt")
+            max_length = kwargs.get("max_length", 128)
             self.ranker = Ranker(model_name=model_name, cache_dir=cache_dir, max_length=max_length)
-            logger.info(f"Reranker initialized with model '{model_name}'")
-        except Exception as e:
-            logger.error(f"Failed to initialize reranker: {e}")
-            raise
+            logger.info(f"Reranker initialized with flashrank using model '{model_name}'.")
+        elif self.method == "crossencoder":
+            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+            model_name = kwargs.get("model", "bkai-foundation-models/vietnamese-bi-encoder")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            logger.info(f"Reranker initialized with crossencoder using model '{model_name}'.")
+        elif self.method == "cohere":
+            # Example: using cohere's Python client
+            import cohere
+            api_key = kwargs.get("api", "")
+            if not api_key:
+                raise ValueError("API key required for cohere reranker.")
+            model_name = kwargs.get("model", "default")
+            self.client = cohere.Client(api_key)
+            self.cohere_model = model_name
+            logger.info(f"Reranker initialized with Cohere using model '{model_name}'.")
+        else:
+            raise ValueError(f"Unsupported reranker method: {self.method}")
 
     def rerank(self, query: str, passages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Rerank the passages based on the query.
-
+        Rerank passages based on the query using the chosen method.
+        
         Args:
             query (str): The query text.
-            passages (List[Dict[str, Any]]): List of dictionaries with `id`, `text`, and optional `meta`.
-
+            passages (List[Dict[str, Any]]): List of passages (each should have 'id', 'text', and optionally 'meta').
+            
         Returns:
-            List[Dict[str, Any]]: Reranked list of passages with scores.
+            List[Dict[str, Any]]: Reranked passages with updated scores.
         """
+        if self.method == "flashrank":
+            return self._rerank_flashrank(query, passages)
+        elif self.method == "crossencoder":
+            return self._rerank_crossencoder(query, passages)
+        elif self.method == "cohere":
+            return self._rerank_cohere(query, passages)
+        else:
+            raise ValueError(f"Unsupported reranker method: {self.method}")
+
+    def _rerank_flashrank(self, query: str, passages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         try:
-            logger.debug(f"Starting reranking for query: {query}")
-            logger.debug(f"Received {len(passages)} passages for reranking.")
-
-            # Prepare the rerank request
+            logger.debug(f"Starting flashrank reranking for query: {query}")
             rerank_request = RerankRequest(query=query, passages=passages)
-            logger.debug(f"RerankRequest created with query: '{query}' and {len(passages)} passages.")
-
-            # Perform reranking
             results = self.ranker.rerank(rerank_request)
-            logger.debug(f"Reranking completed. Received {len(results)} results.")
-
+            logger.debug(f"Flashrank reranking completed with {len(results)} results.")
             return results
         except Exception as e:
-            logger.error(f"Failed to rerank passages: {e}")
+            logger.error(f"Flashrank reranking failed: {e}")
             return []
-        
+
+    def _rerank_crossencoder(self, query: str, passages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not passages:
+            logger.warning("No passages provided to rerank.")
+            return []
+
+        scored_candidates = []
+        for cand in passages:
+            candidate_text = cand.get("text", "")
+            try:
+                score = self._cross_encoder_score(query, candidate_text)
+            except Exception as e:
+                logger.error(f"Error scoring candidate '{cand.get('id', 'unknown')}': {e}")
+                score = 0  # Default or fallback score
+            cand["score"] = score
+            scored_candidates.append(cand)
+
+        scored_candidates.sort(key=lambda x: x["score"], reverse=True)
+        return scored_candidates
+
+    def _cross_encoder_score(self, query: str, candidate: str) -> float:
+        inputs = self.tokenizer(query, candidate, return_tensors="pt", truncation=True, max_length=512)
+        import torch
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            logits = outputs.logits
+            if logits.dim() == 1 or logits.size(-1) == 1:
+                score = logits.squeeze().item()
+            else:
+                score = logits[:, 0].item()
+        return score
+
+    def _rerank_cohere(self, query: str, passages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        scored_candidates = []
+        # Example: assuming cohere's API provides a ranking function.
+        # You need to refer to cohere's documentation for the exact API usage.
+        for cand in passages:
+            candidate_text = cand.get("text", "")
+            # Here, we simulate an API call; replace with actual client code.
+            response = self.client.rank(query=query, candidates=[candidate_text], model=self.cohere_model)
+            # Assume the response returns a score in response["results"][0]["score"]
+            score = response["results"][0]["score"] if response.get("results") else 0.0
+            cand["score"] = score
+            scored_candidates.append(cand)
+        scored_candidates.sort(key=lambda x: x["score"], reverse=True)
+        return scored_candidates
 
 def map_qdrant_rerank(qdrant_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Map Qdrant search results to the format required by the Reranker.
-
-    Args:
-        qdrant_results (List[Dict[str, Any]]): Results from Qdrant search.
-
-    Returns:
-        List[Dict[str, Any]]: Mapped results as dictionaries for the Reranker.
+    Map Qdrant search results to the format required by the reranker.
     """
     mapped_results = []
     for result in qdrant_results:
         if "content" not in result or not result["content"]:
             logger.warning(f"Skipping result without content: {result}")
             continue
-
         mapped_results.append({
             "id": result.get("record_id", ""),
             "text": result.get("content", ""),
@@ -106,31 +188,18 @@ def map_rerank_qdrant(
 ) -> List[Dict[str, Any]]:
     """
     Map reranked results back to the original structure with updated order and scores.
-
-    Args:
-        reranked_results (List[Dict[str, Any]]): Results after reranking, containing 'id', 'text', 'meta', and 'score'.
-        original_results (List[Dict[str, Any]]): Original results from `search_qdrant`.
-
-    Returns:
-        List[Dict[str, Any]]: Results in the original structure with updated order and scores.
     """
-    # Create a lookup table for the original results by `record_id`
-    original_results_lookup = {result["record_id"]: result for result in original_results}
-
-    # Map reranked results back to the original structure
+    original_lookup = {result["record_id"]: result for result in original_results}
     mapped_results = []
     for reranked in reranked_results:
         record_id = reranked["id"]
-        if record_id in original_results_lookup:
-            original_result = original_results_lookup[record_id]
-            # Update the original result with the new score
-            original_result["similarity_score"] = reranked["score"]
+        if record_id in original_lookup:
+            original_result = original_lookup[record_id]
+            original_result["similarity_score"] = reranked.get("score", 0)
             mapped_results.append(original_result)
         else:
-            # Handle cases where `record_id` is not found in the original results
             logger.warning(f"Record ID '{record_id}' not found in the original results. Skipping.")
-    logger.debug(f"Original results lookup: {original_results_lookup}")
+    logger.debug(f"Original lookup: {original_lookup}")
     logger.debug(f"Reranked results: {reranked_results}")
     logger.debug(f"Final mapped results: {mapped_results}")
-
     return mapped_results

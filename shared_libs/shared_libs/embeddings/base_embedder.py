@@ -21,12 +21,13 @@ class BaseEmbedder(ABC):
         :return: A list of lists of floats representing embeddings.
         """
         pass
-
+    
     @abstractmethod
-    def vector_size(self) -> int:
+    def vector_dimension(self) -> int:
         """
         Get the size of the embedding vector.
 
         :return: Size of the embedding vector.
         """
         pass
+

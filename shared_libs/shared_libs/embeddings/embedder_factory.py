@@ -13,6 +13,7 @@ class EmbedderFactory:
         Initialize EmbedderFactory with the embedding configuration.
         """
         self.config = config
+        self.dim = config.vector_dimension
 
     def load_provider_config(self, provider_name: str) -> dict:
         """

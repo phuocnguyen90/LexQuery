@@ -20,7 +20,7 @@ class TestInvokeWorker(unittest.TestCase):
             query = QueryModel(
                 query_id='test-query-id',
                 query_text='Test query for invoke_worker',
-                answer_text=None,
+                response_text=None,
                 sources=[],
                 is_complete=False
             )

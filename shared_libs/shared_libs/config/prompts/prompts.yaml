@@ -42,6 +42,21 @@ prompts:
       Applicability:
       Generated Title:
       Suggested Categories:
+    keyword_extraction_prompt: |
+      You are a keyword extractor. Extract the top {top_k} keywords from the following question and return them in a JSON array format.
+      The keywords must:
+      - Be in the same language as the question.
+      - Prioritize legal terms, concepts, and terminology likely to appear in legal documents, cases, or articles.
+      - Avoid overly broad or vague terms unless directly relevant.
+      
+      Example:
+      Question: "thủ tục đăng ký thay đổi người đại diện theo pháp luật của doanh nghiệp?"
+      Return: {{"keywords": ["đăng ký kinh doanh", "người đại diện", "luật doanh nghiệp", "giấy phép kinh doanh", "thông tin doanh nghiệp", "đăng ký doanh nghiệp"]}}
+      
+      Now, extract keywords for the following question:
+      Question: "{query_text}"
+      Return the keywords in this JSON format:
+      {{"keywords": ["keyword1", "keyword2", "keyword3", ...]}}
   rag_prompt:
     system_prompt: |    
       Bạn là một trợ lý pháp lý chuyên nghiệp. Dựa trên câu hỏi của người dùng và các kết quả tìm kiếm liên quan được cung cấp, hãy trả lời câu hỏi và tuân thủ các yêu cầu sau:

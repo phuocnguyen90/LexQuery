@@ -9,7 +9,7 @@ config=AppConfigLoader()
 llm_provider_name=config.get('llm', {}).get('provider', 'groq')
 llm_config = config.get('llm', {}).get(llm_provider_name, {})
 
-logger = Logger.get_logger(module_name=__name__)
+logger = Logger.get_logger(module_name="IntentionDetector")
 
 
 

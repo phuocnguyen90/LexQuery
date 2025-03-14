@@ -1,0 +1,81 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql" // or your preferred database
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String         @unique
+  password      String
+  role          Role           @default(GUEST)
+  subscription  Subscription? // Backrelation field without @relation attributes
+  usages        Usage[]
+  chatResponses ChatResponse[] // From previous models
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  tier      SubscriptionTier
+  status    SubscriptionStatus @default(ACTIVE)
+  user      User               @relation(fields: [userId], references: [id])
+  userId    String             @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model Usage {
+  id            String   @id @default(cuid())
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  date          DateTime @default(now())
+  questionsUsed Int      @default(0)
+  tokensUsed    Int      @default(0)
+
+  @@unique([userId, date])
+}
+
+model ChatResponse {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  question  String
+  response  String
+  createdAt DateTime @default(now())
+}
+
+model TemplateAnswer {
+  id        String   @id @default(cuid())
+  question  String   @unique
+  answer    String
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  GUEST
+  FREE
+  PAID
+  ADMIN
+  MODERATOR
+}
+
+enum SubscriptionTier {
+  UNLIMITED
+  PAY_AS_YOU_GO
+  PREPAID_BASIC
+  PREPAID_PRO
+  PREPAID_ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
