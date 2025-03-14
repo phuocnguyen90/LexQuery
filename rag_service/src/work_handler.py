@@ -91,6 +91,13 @@ async def handler(event, context):
         query_response = rag_response.get("query_response")
         if query_response is None:
             raise ValueError("query_response is missing from RAG response.")
+        
+        # Update the QueryModel with the response so DynamoDB reflects the answered state.
+        query_item.response_text = query_response.get("response_text")
+        query_item.sources = query_response.get("sources")
+        query_item.is_complete = True
+        query_item.timestamp = query_response.get("timestamp")
+        await query_item.update_item(query_id, query_item)        
 
         # Build the final response ensuring that all fields are JSON serializable.
         final_response = {"query_response": query_response}

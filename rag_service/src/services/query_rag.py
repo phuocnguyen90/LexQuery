@@ -42,12 +42,13 @@ prompt_config = PromptConfigLoader()
 
 # Load the RAG prompt from config
 rag_prompt = prompt_config.get_prompt('prompts').get('rag_prompt', {}).get('system_prompt', '')
-
+keyword_extraction_prompt = prompt_config.get_prompt('prompts').get('enrichment').get('keyword_extraction_prompt', '')
 # Log an appropriate warning if the prompt is empty
 if not rag_prompt:
     logger.warning("RAG system prompt is empty or not found in prompts configuration.")
 else:
-    logger.info("RAG system prompt loaded successfully.")
+    # logger.info("RAG system prompt loaded successfully.")
+    pass
 
 # Load the default LLM provider using ProviderFactory
 default_provider_name = config.get('llm', {}).get('provider', 'groq')
@@ -108,7 +109,7 @@ async def retrieve_documents(embedding_vector: np.ndarray, top_k: int = 6) -> Li
     Retrieve similar documents using Qdrant.
     """
     try:
-        retrieved_docs = await search_qdrant(embedding_vector, top_k=top_k)
+        retrieved_docs = await search_qdrant(embedding_vector, top_k=top_k,config=config)
         return retrieved_docs
     except Exception as e:
         logger.error(f"Failed to retrieve documents: {e}")
@@ -121,7 +122,7 @@ async def paraphrase_query(query_text: str, provider: Any) -> Optional[str]:
     try:
         paraphrase_prompt = f"Viết lại câu hỏi sau đây sử dụng ngôn ngữ, thuật ngữ pháp lý:\n\n{query_text}"
         # Log raw prompt for paraphrasing
-        logger.raw(f"Paraphrase prompt sent: {paraphrase_prompt}")
+        # logger.raw(f"Paraphrase prompt sent: {paraphrase_prompt}")
         paraphrased_query = await provider.send_single_message(prompt=paraphrase_prompt)
         # Log raw LLM response for paraphrasing
         logger.raw(f"Paraphrase response received: {paraphrased_query}")
@@ -186,27 +187,17 @@ async def extract_keywords(query_text: str, provider: Any, top_k: int = 10) -> L
         logger.error("No query text provided for keyword extraction.")
         return []
 
-    if provider is None:
+    if provider is None: 
         logger.error("No LLM provider instance provided.")
         return []
 
     try:
-        prompt = (
-            f"Extract the top {top_k} keywords from the following question and return them in a JSON array format.\n\n"
-            f"The keywords must:\n"
-            f"- Be in the same language as the question.\n"
-            f"- Prioritize legal terms, concepts, and terminology likely to appear in legal documents, cases, or articles.\n"
-            f"- Avoid overly broad or vague terms unless directly relevant.\n\n"
-            f"Example:\n"
-            f'Question: "thủ tục đăng ký thay đổi người đại diện theo pháp luật của doanh nghiệp?"\n'
-            f'Return: {{"keywords": ["đăng ký kinh doanh", "người đại diện", "luật doanh nghiệp", "giấy phép kinh doanh", "thông tin doanh nghiệp", "đăng ký doanh nghiệp"]}}\n\n'
-            f"Now, extract keywords for the following question:\n"
-            f"Question: \"{query_text}\"\n\n"
-            f"Return the keywords in this format:\n"
-            f'{{"keywords": ["keyword1", "keyword2", "keyword3", ...]}}'
-        )
+        if not keyword_extraction_prompt:
+            logger.error("Keyword extraction prompt not found in prompts.yaml.")
+            return []
+        prompt = keyword_extraction_prompt.format(chunk_text=query_text, top_k=top_k)
         logger.debug(f"Sending prompt to LLM for keyword extraction: {prompt}")
-        logger.raw(f"Keyword extraction prompt sent: {prompt}")
+        # logger.raw(f"Keyword extraction prompt sent: {prompt}")
         response = await provider.send_single_message(prompt=prompt)
         logger.raw(f"Keyword extraction raw response received: {response}")
         # Use regex to extract JSON from the response
@@ -219,7 +210,7 @@ async def extract_keywords(query_text: str, provider: Any, top_k: int = 10) -> L
                 keywords = keywords_data.get("keywords", [])
                 if isinstance(keywords, list) and len(keywords) > 0:
                     logger.debug(f"Extracted Keywords: {keywords}")
-                    logger.raw(f"Extracted Keywords: {keywords}")
+                    # logger.raw(f"Extracted Keywords: {keywords}")
                     return keywords
                 else:
                     logger.warning("The 'keywords' field is invalid or empty.")
@@ -233,7 +224,7 @@ async def extract_keywords(query_text: str, provider: Any, top_k: int = 10) -> L
             if list_match:
                 keywords = list_match[:top_k]
                 logger.debug(f"Extracted Keywords from plain text: {keywords}")
-                logger.raw(f"Extracted Keywords from plain text: {keywords}")
+                # logger.raw(f"Extracted Keywords from plain text: {keywords}")
                 return keywords
             else:
                 logger.warning("No keywords found in the fallback plain text parsing.")
@@ -282,9 +273,9 @@ async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], pro
     message_payload = {
         "messages": messages
     }
-    # Log the raw payload being sent to the LLM
-    import json
-    logger.raw(f"LLM message payload sent: {json.dumps(message_payload, indent=2)}")
+    # DEBUG Log the raw payload being sent to the LLM
+    # import json
+    # logger.raw(f"LLM message payload sent: {json.dumps(message_payload, indent=2, ensure_ascii=False)}")
     try:
         response_text = await provider.send_single_message(message_payload=message_payload)
         logger.raw(f"LLM raw response received: {response_text}")
@@ -365,7 +356,7 @@ async def query_rag(
                 keywords = await extract_keywords(query_text, provider, top_k=10)
                 if isinstance(keywords, list) and len(keywords) > 0:
                     logger.debug(f"Keywords extracted: {keywords}")
-                    logger.raw(f"Keywords extracted: {keywords}")
+                    # logger.raw(f"Keywords extracted: {keywords}")
                     extracted_keywords = keywords
                     qa_docs = await advanced_qdrant_search(
                         embedding_vector, keywords, collection_name=QA_COLLECTION_NAME, top_k=3
@@ -410,11 +401,14 @@ async def query_rag(
         try:
             from services.reranker import Reranker, map_qdrant_rerank, map_rerank_qdrant
             mapped_results = map_qdrant_rerank(all_retrieved_docs)
-            reranker = Reranker(model_name="ms-marco-MultiBERT-L-12", cache_dir="/opt")
+            # working reranker
+            # reranker = Reranker(model_name="ms-marco-MultiBERT-L-12", cache_dir="/opt")
+            # testing new reranker
+            reranker = Reranker(method="crossencoder", model="bkai-foundation-models/vietnamese-bi-encoder")
             reranked_docs = reranker.rerank(query_text, mapped_results)
             all_retrieved_docs = map_rerank_qdrant(reranked_docs, all_retrieved_docs)
             rerank_applied = True
-            logger.raw("Reranking applied successfully.")
+            # logger.raw("Reranking applied successfully.")
         except Exception as e:
             logger.error(f"Reranker failed: {e}")
             return {

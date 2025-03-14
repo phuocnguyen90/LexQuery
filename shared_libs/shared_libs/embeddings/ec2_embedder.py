@@ -36,5 +36,5 @@ class EC2Embedder(BaseEmbedder):
         response.raise_for_status()
         return response.json()["embeddings"]
 
-    def vector_size(self) -> int:
+    def vector_dimension(self) -> int:
         return self.vector_dimension

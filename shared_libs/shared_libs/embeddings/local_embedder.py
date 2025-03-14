@@ -76,7 +76,7 @@ class LocalEmbedder(BaseEmbedder):
             logger.error(f"Failed to embed batch of texts. Error: {e}")
             raise
 
-    def vector_size(self) -> int:
+    def vector_dimension(self) -> int:
         """
         Return the vector size for the model.
 
