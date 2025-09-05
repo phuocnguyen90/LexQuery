@@ -69,7 +69,15 @@ class Reranker:
             model_name = kwargs.get("model", "bkai-foundation-models/vietnamese-bi-encoder")
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            self.max_length = kwargs.get("max_length", 256)
             logger.info(f"Reranker initialized with crossencoder using model '{model_name}'.")
+        elif self.method == "phoranker":
+            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+            model_name = kwargs.get("model", "itdainb/PhoRanker")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            self.max_length = kwargs.get("max_length", 256)
+            logger.info(f"Reranker initialized with PhoRanker using model '{model_name}'.")
         elif self.method == "cohere":
             # Example: using cohere's Python client
             import cohere
@@ -98,8 +106,11 @@ class Reranker:
             return self._rerank_flashrank(query, passages)
         elif self.method == "crossencoder":
             return self._rerank_crossencoder(query, passages)
+        elif self.method == "phoranker":
+            return self._rerank_crossencoder(query, passages)
         elif self.method == "cohere":
             return self._rerank_cohere(query, passages)
+        
         else:
             raise ValueError(f"Unsupported reranker method: {self.method}")
 
@@ -134,16 +145,43 @@ class Reranker:
         return scored_candidates
 
     def _cross_encoder_score(self, query: str, candidate: str) -> float:
-        inputs = self.tokenizer(query, candidate, return_tensors="pt", truncation=True, max_length=512)
         import torch
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            logits = outputs.logits
-            if logits.dim() == 1 or logits.size(-1) == 1:
-                score = logits.squeeze().item()
-            else:
-                score = logits[:, 0].item()
-        return score
+        # Tokenize the combined input with truncation
+        inputs = self.tokenizer(query, candidate, return_tensors="pt", truncation=True, max_length=self.max_length)
+        # If the combined input fits within max_length, simply score it
+        if inputs["input_ids"].shape[1] <= self.max_length:
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                logits = outputs.logits
+                # Apply sigmoid to normalize the score between 0 and 1.
+                if logits.dim() == 1 or logits.size(-1) == 1:
+                    score = torch.sigmoid(logits.squeeze()).item()
+                else:
+                    score = torch.sigmoid(logits[:, 0]).item()
+            return score
+        else:
+            # Otherwise, split the candidate text into segments that fit
+            query_tokens = self.tokenizer(query, add_special_tokens=True)["input_ids"]
+            available_length = self.max_length - len(query_tokens)
+            candidate_tokens = self.tokenizer(candidate, add_special_tokens=False)["input_ids"]
+            segments = []
+            for i in range(0, len(candidate_tokens), available_length):
+                segment_tokens = candidate_tokens[i:i + available_length]
+                segment_text = self.tokenizer.decode(segment_tokens, skip_special_tokens=True)
+                segments.append(segment_text)
+            scores = []
+            for segment in segments:
+                inputs_segment = self.tokenizer(query, segment, return_tensors="pt", truncation=True, max_length=self.max_length)
+                with torch.no_grad():
+                    outputs_segment = self.model(**inputs_segment)
+                    logits_segment = outputs_segment.logits
+                    if logits_segment.dim() == 1 or logits_segment.size(-1) == 1:
+                        score = torch.sigmoid(logits_segment.squeeze()).item()
+                    else:
+                        score = torch.sigmoid(logits_segment[:, 0]).item()
+                scores.append(score)
+            return max(scores) if scores else 0.0
+
 
     def _rerank_cohere(self, query: str, passages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         scored_candidates = []

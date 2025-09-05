@@ -52,8 +52,13 @@ class ProviderRegistry:
             ) from e
 
 # Register providers immediately upon module import
-ProviderRegistry.register_provider("ec2", "shared_libs.embeddings.ec2_embedder", "EC2Embedder")
+ProviderRegistry.register_provider("cloud", "shared_libs.embeddings.cloud_embedder", "CloudEmbedder")
 ProviderRegistry.register_provider("local", "shared_libs.embeddings.local_embedder", "LocalEmbedder")
+ProviderRegistry.register_provider(
+    "local_gemma3",
+    "shared_libs.embeddings.gemma_embedder",
+    "GemmaLocalEmbedder",
+)
 ProviderRegistry.register_provider("docker", "shared_libs.embeddings.docker_embedder", "DockerEmbedder")
 ProviderRegistry.register_provider("bedrock", "shared_libs.embeddings.bedrock_embedder", "BedrockEmbedder")
 ProviderRegistry.register_provider("openai_embedding", "shared_libs.embeddings.openai_embedder", "OpenAIEmbedder")

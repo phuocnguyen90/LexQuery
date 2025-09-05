@@ -4,7 +4,7 @@ provider: groq  # Options: groq, google_gemini
 
 # Embedding Models Configuration
 embedding:
-  default_provider: "ec2"  # Default provider for the embedding service
+  default_provider: "cloud"  # Default provider for the embedding service
   mode: "api"             # Mode of interaction: 'local' or 'api'
 
   # Global API URL for embedding service
@@ -12,7 +12,7 @@ embedding:
 
   # API Endpoint-based Embedding Providers
   api_providers:
-    ec2:
+    cloud:
       service_url: "http://54.174.232.98:8000/embed"
       vector_dimension: 384
 
@@ -53,6 +53,17 @@ embedding:
       library_path: "/app/libraries/fastembed.py"
       function_name: "generate_embedding"
       vector_dimension: 512
+    local_gemma3:
+      model_name: google/embeddinggemma-300m
+      cache_dir: /models/cache/gemma3
+      function_name: "generate_embedding"
+      similarity: "cosine"               # or 'cosine'
+      normalize: true
+      inference_mode: 'auto'          # 'auto' | 'document' | 'query'
+      truncate_dim: 768             # one of [768,512,256,128]
+      vector_dimension: 768         # factory expects this; validated at runtime
+      device: 'cuda'                  # 'cuda' | 'cpu' | omit for auto-detect
+    
 
   # Environment Overrides
   environments:
@@ -63,7 +74,7 @@ embedding:
       default_provider: "docker"
       api_service_url: "http://localhost:8001/embed"
     production:
-      default_provider: "ec2"
+      default_provider: "cloud"
       api_service_url: "http://54.174.232.98:8000/embed"
 
 

@@ -15,6 +15,8 @@ from shared_libs.utils.logger import Logger
 
 # Import PromptConfigLoader if needed
 from shared_libs.config.prompt_config import PromptConfigLoader
+from shared_libs.llm_providers.llm_provider import LLMProvider  
+from models.query_model import QueryModel
 
 logger = Logger.get_logger(module_name=__name__)
 
@@ -27,9 +29,9 @@ class QueryResponse(BaseModel):
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
 
 async def query_rag(
-    query_item,
+    query_item:QueryModel,
     conversation_history: Optional[List] = None,
-    provider: Optional[Any] = None,
+    provider: Optional[LLMProvider] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None,
     rerank: bool = False,
@@ -58,12 +60,12 @@ async def query_rag(
     else:
         # Create a dummy loader if necessary
         from shared_libs.config.app_config import AppConfigLoader
-        config_loader = AppConfigLoader()
+        app_config = AppConfigLoader()
     
     # Load embedding configuration if not provided.
     if embedding_config is None:
         from shared_libs.config.embedding_config import EmbeddingConfig
-        embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+        embedding_config = EmbeddingConfig.get_embed_config(app_config)
     
     # Determine embedding mode, using environment variable or config defaults.
     if embedding_mode is None:
@@ -75,11 +77,16 @@ async def query_rag(
     
     # Determine and create the embedding function based on the mode.
     if embedding_mode == "api":
-        embedding_function = factory.create_embedder('ec2')
+        embedding_function = factory.create_embedder('cloud')
     elif embedding_mode == "local":
         embedding_function = factory.create_embedder('local')
     else:
         raise ValueError(f"Unsupported embedding mode: {embedding_mode}")
+    
+    if provider is None:
+        from services.query_rag import initialize_provider  # or adjust the import as needed
+        provider = initialize_provider(llm_config.llm.get('provider', 'groq'))
+
     
     # Generate the embedding vector for the query text.
     # Note: generate_embedding is expected to be an async function.
@@ -164,7 +171,8 @@ async def query_rag(
             from services.reranker import Reranker, map_qdrant_rerank, map_rerank_qdrant
             mapped_results = map_qdrant_rerank(all_retrieved_docs)
             # Example: using crossencoder for reranking
-            reranker = Reranker(method="crossencoder", model="bkai-foundation-models/vietnamese-bi-encoder")
+            # reranker = Reranker(method="crossencoder", model="bkai-foundation-models/vietnamese-bi-encoder")
+            reranker = Reranker(method="phoranker")
             reranked_docs = reranker.rerank(query_item.query_text, mapped_results)
             all_retrieved_docs = map_rerank_qdrant(reranked_docs, all_retrieved_docs)
             rerank_applied = True

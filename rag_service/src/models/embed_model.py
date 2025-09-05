@@ -5,11 +5,11 @@ from pydantic import field_validator
 from typing import Optional, Literal
 
 class BaseEmbeddingConfig(BaseModel):
-    provider: str = Field(..., description="The embedding provider (e.g., local, docker, ec2, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding)")
+    provider: str = Field(..., description="The embedding provider (e.g., local, docker, cloud, bedrock, groq_embedding, openai_embedding, google_gemini_embedding, ollama_embedding)")
     model_config = {"protected_namespaces": ()}
     @field_validator('provider')
     def validate_provider(cls, v):
-        allowed = {'local', 'docker', 'ec2', 'bedrock', 'groq_embedding', 'openai_embedding', 'google_gemini_embedding', 'ollama_embedding'}
+        allowed = {'local', 'docker', 'cloud', 'bedrock', 'groq_embedding', 'openai_embedding', 'google_gemini_embedding', 'ollama_embedding'}
         if v.lower() not in allowed:
             raise ValueError(f"Provider must be one of {allowed}")
         return v.lower()
@@ -31,10 +31,10 @@ class DockerEmbeddingConfig(BaseEmbeddingConfig):
     service_url: str = Field(..., description="Docker service URL for embeddings")
     vector_dimension: int = Field(..., description="Vector dimension for the docker enpoint.")
 
-class EC2EmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal["ec2"] = "ec2"
-    service_url: str = Field(..., description="EC2 service URL for embeddings")
-    vector_dimension: int = Field(..., description="Vector dimension for the EC2 embedding model.")
+class CloudEmbeddingConfig(BaseEmbeddingConfig):
+    provider: Literal["cloud"] = "cloud"
+    service_url: str = Field(..., description="Cloud service URL for embeddings")
+    vector_dimension: int = Field(..., description="Vector dimension for the Cloud embedding model.")
 
 class BedrockEmbeddingConfig(BaseEmbeddingConfig):
     model_id: str = Field(..., description="Amazon Bedrock model ID")

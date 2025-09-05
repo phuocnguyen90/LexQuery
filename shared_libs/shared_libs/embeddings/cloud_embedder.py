@@ -1,27 +1,27 @@
-# shared_libs\shared_libs\embeddings\ec2_embedder.py
+# shared_libs\shared_libs\embeddings\cloud_embedder.py
 import requests
 from typing import List, Dict, Any
 from .base_embedder import BaseEmbedder
 from .embedder_registry import EmbedderRegistry
 from typing_extensions import Literal
 
-@EmbedderRegistry.register('ec2')
-class EC2Embedder(BaseEmbedder):
+# EmbedderRegistry.register("cloud", "shared_libs.embeddings.cloud_embedder", "CloudEmbedder")
+class CloudEmbedder(BaseEmbedder):
     required_fields = ["service_url", "vector_dimension"]
 
     def __init__(self, config: Dict[str, Any]):
         """
-        Initialize EC2Embedder with dynamic configuration.
+        Initialize CloudEmbedder with dynamic configuration.
 
         Args:
-            config (Dict[str, Any]): Configuration dictionary for the EC2 provider.
+            config (Dict[str, Any]): Configuration dictionary for the CLOUD provider.
         """
-        self.provider: Literal['ec2'] = 'ec2'
+        self.provider: Literal['cloud'] = 'cloud'
 
         # Validate required fields
         for field in self.required_fields:
             if field not in config:
-                raise ValueError(f"Missing required field '{field}' in EC2 configuration.")
+                raise ValueError(f"Missing required field '{field}' in CLOUD configuration.")
 
         self.service_url = config["service_url"]
         self.vector_dimension = int(config["vector_dimension"])

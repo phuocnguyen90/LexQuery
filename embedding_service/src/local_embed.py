@@ -24,7 +24,7 @@ def get_embeddings(request: EmbeddingRequest):
 
     try:
         # Load configuration
-        embedding_config = EmbeddingConfig.from_config_loader()
+        embedding_config = EmbeddingConfig.get_embed_config(app_config)
 
         # Retrieve the specific configuration for the provider
         if provider in embedding_config.api_providers:

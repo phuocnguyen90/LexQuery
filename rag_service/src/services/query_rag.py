@@ -9,6 +9,7 @@ import json
 import numpy as np
 import asyncio
 from pydantic import BaseModel
+from shared_libs.llm_providers.llm_provider import LLMProvider
 
 # Ensure the parent directory is added to `sys.path` for consistent imports
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,10 +29,10 @@ from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.embeddings.embedder_factory import EmbedderFactory 
 
 # Load configuration
-config_loader = AppConfigLoader()
-config = config_loader.config
+app_config = AppConfigLoader()
+config = app_config.config
 EMBEDDING_MODE = os.getenv('EMBEDDING_MODE','local')
-embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+embedding_config = EmbeddingConfig.from_config_loader(app_config)
 factory = EmbedderFactory(embedding_config)
 embedding_function = factory.create_embedder(EMBEDDING_MODE)  
 
@@ -63,7 +64,7 @@ class QueryResponse(BaseModel):
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False").lower() in ["true", "1", "yes"]
 
-def initialize_provider(llm_provider_name: Optional[str] = None) -> Any:
+def initialize_provider(llm_provider_name: Optional[str] = None) -> LLMProvider:
     """
     Initialize the LLM provider.
     """
@@ -115,7 +116,7 @@ async def retrieve_documents(embedding_vector: np.ndarray, top_k: int = 6) -> Li
         logger.error(f"Failed to retrieve documents: {e}")
         return []
 
-async def paraphrase_query(query_text: str, provider: Any) -> Optional[str]:
+async def paraphrase_query(query_text: str, provider: LLMProvider) -> Optional[str]:
     """
     Paraphrase the query using the LLM provider.
     """
@@ -139,7 +140,7 @@ def reconstruct_sources(retrieved_docs: List[Dict]) -> None:
         if not doc.get("source"):
             doc["source"] = reconstruct_source(doc.get("chunk_id", "Unknown Record"))
 
-async def rerank_documents(retrieved_docs: List[Dict], query_text: str, provider: Any) -> List[Dict]:
+async def rerank_documents(retrieved_docs: List[Dict], query_text: str, provider: LLMProvider) -> List[Dict]:
     """
     Rerank the retrieved documents based on their relevance to the query.
     """
@@ -156,7 +157,7 @@ async def rerank_documents(retrieved_docs: List[Dict], query_text: str, provider
     return [doc for doc, score in scored_docs]
 
 # Placeholder function
-async def get_relevance_score(query_text: str, doc_content: str, provider: Any) -> float:
+async def get_relevance_score(query_text: str, doc_content: str, provider: LLMProvider) -> float:
     """
     Get the relevance score of a document to the query using the LLM.
     """
@@ -179,7 +180,7 @@ async def get_relevance_score(query_text: str, doc_content: str, provider: Any) 
         logger.error(f"Failed to get relevance score: {e}")
         return 5  # Default score
 
-async def extract_keywords(query_text: str, provider: Any, top_k: int = 10) -> List[str]:
+async def extract_keywords(query_text: str, provider: LLMProvider, top_k: int = 10) -> List[str]:
     """
     Extract top_k keywords from the user query using the LLM.
     """
@@ -233,7 +234,7 @@ async def extract_keywords(query_text: str, provider: Any, top_k: int = 10) -> L
         logger.error(f"Error during keyword extraction: {e}")
         return []
 
-async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], provider: Any) -> str:
+async def generate_llm_response(query_text: str, retrieved_docs: List[Dict], provider: LLMProvider) -> str:
     """
     Generate the response using the LLM provider by sending a JSON payload.
     """
@@ -304,7 +305,7 @@ def create_final_response(query_text: str, response_text: str, retrieved_docs: L
 async def query_rag(
     query_item,
     conversation_history: Optional[List] = None,
-    provider: Optional[Any] = None,
+    provider: Optional[LLMProvider] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None,
     rerank: bool = False,
@@ -319,11 +320,11 @@ async def query_rag(
 
     current_embedding_mode = embedding_mode.lower() if embedding_mode else config.get('embedding', {}).get('mode', 'local').lower()
 
-    embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+    embedding_config = EmbeddingConfig.from_config_loader(app_config)
     factory = EmbedderFactory(embedding_config)
 
     if current_embedding_mode == "api":
-        embedding_function = factory.create_embedder('ec2')
+        embedding_function = factory.create_embedder('cloud')
     elif current_embedding_mode == "local":
         embedding_function = factory.create_embedder('local')
     else:
@@ -404,7 +405,8 @@ async def query_rag(
             # working reranker
             # reranker = Reranker(model_name="ms-marco-MultiBERT-L-12", cache_dir="/opt")
             # testing new reranker
-            reranker = Reranker(method="crossencoder", model="bkai-foundation-models/vietnamese-bi-encoder")
+            # reranker = Reranker(method="crossencoder", model="bkai-foundation-models/vietnamese-bi-encoder")
+            reranker = Reranker(method="phoranker", model="itdainb/PhoRanker")
             reranked_docs = reranker.rerank(query_text, mapped_results)
             all_retrieved_docs = map_rerank_qdrant(reranked_docs, all_retrieved_docs)
             rerank_applied = True

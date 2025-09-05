@@ -4,13 +4,16 @@ import os
 import asyncio
 from typing import Callable, List, Optional, Awaitable
 from shared_libs.utils.logger import Logger
+from shared_libs.config.app_config import AppConfigLoader
 from shared_libs.config.embedding_config import EmbeddingConfig
 from shared_libs.embeddings.embedder_factory import EmbedderFactory
 
+app_config=AppConfigLoader()
 logger = Logger.get_logger(module_name=__name__)
 
+
 # Load embedding configuration
-embedding_config = EmbeddingConfig.from_config_loader()
+embedding_config = EmbeddingConfig.get_embed_config(app_config)
 
 # Retrieve EMBEDDING_MODE from environment variables
 EMBEDDING_MODE = os.getenv('EMBEDDING_MODE', 'local').lower()

@@ -32,7 +32,8 @@ embedding_function = factory.create_embedder(os.getenv('ACTIVE_EMBEDDING_PROVIDE
 # Optionally, initialize your LLM provider once (if needed in qa_formatter)
 
 from services.query_rag import initialize_provider
-llm_provider = initialize_provider()  
+llm_provider = initialize_provider("groq")
+logger.debug("LLM provider initialized: %s", llm_provider)  
 DEV_LOG_FILE = "developer_logs.log"
 TESTER_LOG_FILE = "tester_logs.log"
 

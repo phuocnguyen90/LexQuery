@@ -1,56 +1,96 @@
 # src/services/qdrant_uploader.py
-
-import uuid
-from typing import List,Iterator
-from qdrant_client.http import models as qdrant_models
-from qdrant_client.models import Distance, VectorParams
 import os
+import uuid
+import json
+from typing import List, Iterator, Optional
+
+
+from qdrant_client.http import models as qmodels
 
 
 from shared_libs.utils.logger import Logger
 from shared_libs.models.record_model import Record
-from shared_libs.embeddings.embedder_factory import EmbedderFactory 
-from shared_libs.config import Config
-from qdrant_init import initialize_qdrant
-from qdrant_utils import ensure_collection_exists, check_duplicate_point
+from shared_libs.embeddings.embedder_factory import EmbedderFactory
+from shared_libs.config.app_config import AppConfigLoader
+from shared_libs.config.embedding_config import EmbeddingConfig
 
 
-# Load configuration from shared_libs
-global_config = Config.load()
-embedding_config = global_config.embedding
+from .qdrant_init import initialize_qdrant
+from .qdrant_utils import ensure_collection_exists, check_duplicate_point
 
-llm_config = global_config.llm
-qdrant_config = global_config.qdrant
+
+logger = Logger.get_logger(module_name="Qdrant Uploader")
+
+
+
+# ---------------------------------------------------------------------------
+# Configuration & initialization
+# ---------------------------------------------------------------------------
+app_config = AppConfigLoader()
+embedding_config = EmbeddingConfig.get_embed_config(app_config)
 factory = EmbedderFactory(embedding_config)
 
-# Configure logging using Logger from shared_libs
-logger = Logger.get_logger(module_name="Qdrant Uploader")
-logger.debug(embedding_config)
+
+# Use env override if set; otherwise the default provider from YAML
+ACTIVE_PROVIDER = embedding_config.active_provider # e.g., "local_gemma3"
+embedder = factory.create_embedder(ACTIVE_PROVIDER)
 
 
-os.environ['ACTIVE_EMBEDDING_PROVIDER'] = 'local'
-
-embedding_function = factory.create_embedder('local')  
-from qdrant_init import initialize_qdrant
-
-# Retrieve the expected vector dimension for the provider you are using (e.g., 'local')
-expected_dim = embedding_config.load_provider_config('local').get("vector_dimension")
-distance_metric = global_config.qdrant.distance_metric
-# Retrieve the desired collection name from your config (or use an override)
-qa_collection_name = global_config.qdrant.collection_names.get("qa_collection", "legal_qa")
-doc_collection_name = global_config.qdrant.collection_names.get("doc_collection", "legal_doc")
+# Expected vector dimension should match the active provider's config
+expected_dim = embedding_config.get_vector_dimension()
 
 
-# Initialize Qdrant client (default to local for development)
+# Qdrant settings from master config
+_qcfg = app_config.get("qdrant", {}) or {}
+collection_names = (_qcfg.get("collection_names", {}) or {})
+DISTANCE_METRIC: str = _qcfg.get("distance_metric", "cosine").lower() # "cosine" or "dot"/"dotproduct"
+QA_COLLECTION_NAME = collection_names.get("qa_collection", "legal_qa")
+DOC_COLLECTION_NAME = collection_names.get("doc_collection", "legal_doc")
+
+
+# One client for the whole module; do not close per-operation
 qdrant_client = initialize_qdrant()
 
-def add_record_to_qdrant(record: Record, collection_name: str = qa_collection_name):
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _log_config_banner():
+    logger.info(
+    "Embedding provider: %s | dim=%s | qdrant metric=%s | qa=%s | doc=%s",
+    ACTIVE_PROVIDER,
+    expected_dim,
+    DISTANCE_METRIC,
+    QA_COLLECTION_NAME,
+    DOC_COLLECTION_NAME,
+    )
+
+
+
+
+def _ensure_collection(collection_name: str):
+    ensure_collection_exists(qdrant_client, collection_name, expected_dim, DISTANCE_METRIC)
+
+# ---------------------------------------------------------------------------
+# Single-record upsert
+# ---------------------------------------------------------------------------
+
+def add_record_to_qdrant(record: Record, collection_name: Optional[str] = None) -> None:
+    """Add a single Record to Qdrant using the active embedder.
+
+
+    - Ensures collection exists with correct vector size + distance.
+    - Skips near-duplicates by vector similarity.
+    """
+    target_collection = collection_name or QA_COLLECTION_NAME
     try:
         # Ensure the collection exists (using your existing utility)
-        ensure_collection_exists(qdrant_client, collection_name, expected_dim, distance_metric)
+        _ensure_collection(target_collection)
         
         # Generate embedding for the record's content.
-        embedding = embedding_function.embed(record.content)
+        embedding = embedder.embed(record.content)
         if not embedding:
             logger.error(f"Skipping record {record.record_id} due to embedding failure.")
             return
@@ -59,11 +99,12 @@ def add_record_to_qdrant(record: Record, collection_name: str = qa_collection_na
         if check_duplicate_point(qdrant_client, collection_name, embedding, threshold=0.999):
             logger.info(f"Record {record.record_id} is a duplicate; skipping upload.")
             return
-
+        
+        # Upsert
         qdrant_client.upsert(
             collection_name=collection_name,
             points=[
-                qdrant_models.PointStruct(
+                qmodels.PointStruct(
                     id=record.record_id,
                     vector=embedding,
                     payload=record.to_dict()
@@ -77,54 +118,64 @@ def add_record_to_qdrant(record: Record, collection_name: str = qa_collection_na
         qdrant_client.close()
         logger.info("Qdrant client connection closed.")
 
-def add_records_to_qdrant(records: List[Record], collection_name: str = 'legal_qa', local: bool = True):
+# ---------------------------------------------------------------------------
+# Batch upsert
+# ---------------------------------------------------------------------------
+
+def add_records_to_qdrant(records: List[Record], collection_name: Optional[str] = None) -> None:
     """
     Batch add records to Qdrant. Ensure the collection exists with the correct vector dimension.
     
     :param records: List of Record objects to be added.
     :param local: Whether to use a local Qdrant server.
     """
+    if not records:
+        return 
+    
+    target_collection = collection_name or QA_COLLECTION_NAME
+    _ensure_collection(target_collection)
+    # Compute embeddings in one shot
+    texts = [r.content for r in records]
+    try:
+        embeddings = embedder.batch_embed(texts)
+    except Exception as e:
+        logger.error("Batch embed failed for %d records: %s", len(records), e)
+        return
     # Retrieve the distance metric from the global configuration.
-    distance_metric = global_config.qdrant.distance_metric
-    # Ensure the target collection exists with the expected vector dimension.
-    ensure_collection_exists(qdrant_client, collection_name, expected_dim, distance_metric)
     
-    points = []
-    for record in records:
-        embedding = embedding_function.embed(record.content)
-        if not embedding:
-            logger.error(f"Skipping record {record.record_id} due to embedding failure.")
+    points: List[qmodels.PointStruct] = []
+    for rec, vec in zip(records, embeddings):
+        if not vec:
+            logger.error(f"Skipping record {rec.record_id} due to embedding failure.", rec.record_id)
             continue
 
-        # Check for duplicates before adding this record.
-        if check_duplicate_point(qdrant_client, collection_name, embedding, threshold=0.999):
-            logger.info(f"Record {record.record_id} is a duplicate; skipping upload.")
+        if check_duplicate_point(qdrant_client, target_collection, vec, threshold=0.999):
+            logger.info("Record %s is a duplicate; skipping.", rec.record_id)
             continue
-
-        # Use record.record_id if available; otherwise, generate a unique ID.
-        qdrant_uuid = record.record_id or str(uuid.uuid4())
-        point = qdrant_models.PointStruct(
-            id=qdrant_uuid,
-            vector=embedding,
-            payload=record.to_dict()
-        )
-        points.append(point)
-
-    if points:
-        try:
-            qdrant_client.upsert(
-                collection_name=collection_name,
-                points=points
+        points.append(
+            qmodels.PointStruct(
+            id=rec.record_id or str(uuid.uuid4()),
+            vector=vec,
+            payload=rec.to_dict(),
             )
-            logger.info(f"Successfully added {len(points)} records to Qdrant collection '{collection_name}'.")
-        except Exception as e:
-            logger.error(f"Failed to add records to Qdrant: {e}")
-        finally:
-            qdrant_client.close()
-            logger.info("Qdrant client connection closed.")
+        )
 
+    if not points:
+        logger.info("No new points to upsert into '%s'.", target_collection)
+        return
+    try:
+        qdrant_client.upsert(
+            collection_name=target_collection,
+            points=points
+        )
+        logger.info("Successfully upserted %d records into '%s'.", len(points), target_collection)
+    except Exception as e:
+        logger.error("Failed to upsert %d points into '%s': %s", len(points), target_collection, e)
     
 
+# ---------------------------------------------------------------------------
+# JSONL IO
+# ---------------------------------------------------------------------------
 import json
 def load_jsonl(file_path: str) -> List[Record]:
     """
@@ -133,7 +184,7 @@ def load_jsonl(file_path: str) -> List[Record]:
     :param file_path: Path to the JSONL file.
     :return: List of Record objects.
     """
-    records = []
+    records = List[Record] = []
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             for line in file:
@@ -156,7 +207,7 @@ def load_jsonl_in_batches(file_path: str, batch_size: int) -> Iterator[List[Reco
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
-            batch = []
+            batch: List[Record] = []
             for line_number, line in enumerate(file, start=1):
                 try:
                     data = json.loads(line)
@@ -176,49 +227,71 @@ def load_jsonl_in_batches(file_path: str, batch_size: int) -> Iterator[List[Reco
     except Exception as e:
         logger.error(f"Failed to load JSONL file {file_path}: {e}")
 
-def get_existing_record_ids(record_ids: List[str]) -> List[str]:
+# ---------------------------------------------------------------------------
+# Existence checks
+# ---------------------------------------------------------------------------
+
+def get_existing_record_ids(collection_name: str, record_ids: List[str]) -> List[str]:
     """
     Retrieve existing record IDs from Qdrant based on payload.record_id.
     
     :param record_ids: List of record IDs to check.
     :return: List of record IDs that already exist in Qdrant.
     """
-    existing_ids = []
+    existing: List[str] = []
     try:
-        query_batch_size = 100  # Adjust as needed.
-        for i in range(0, len(record_ids), query_batch_size):
-            batch = record_ids[i:i + query_batch_size]
-            q_filter = qdrant_models.Filter(
+        
+        if not record_ids:
+            return existing
+        step = 100
+        for i in range(0, len(record_ids), step):
+            batch = record_ids[i : i + step]
+            q_filter = qmodels.Filter(
                 should=[
-                    qdrant_models.FieldCondition(
-                        key="record_id",
-                        match=qdrant_models.MatchValue(value=record_id)
-                    ) for record_id in batch
+                qmodels.FieldCondition(
+                key="record_id", match=qmodels.MatchValue(value=rid)
+                )
+                for rid in batch
                 ]
             )
-            # Unpack the tuple (points, next_page_token)
             points, _ = qdrant_client.scroll(
-                collection_name=QA_COLLECTION_NAME,
-                scroll_filter=q_filter,  # Use the correct parameter name.
-                limit=len(batch)
-            )
-            for point in points:
-                if 'record_id' in point.payload:
-                    existing_ids.append(point.payload['record_id'])
-        logger.debug(f"Found {len(existing_ids)} existing records out of {len(record_ids)} queried.")
+                collection_name=collection_name,
+                scroll_filter=q_filter,
+                limit=len(batch),
+                with_vectors=False,
+                with_payload=True,
+                )
+            for p in points:
+                rid = p.payload.get("record_id") if isinstance(p.payload, dict) else None
+                if rid:
+                    existing.append(rid)
+        logger.debug("Found %d existing of %d checked in '%s'.", len(existing), len(record_ids), collection_name)
     except Exception as e:
-        logger.error(f"Failed to retrieve existing record IDs from Qdrant: {e}")
-    return existing_ids
+        logger.error("Failed to retrieve existing record IDs from Qdrant: %s", e)
+    return existing
 
 
 
-def add_records_from_jsonl(file_path: str, batch_size: int = 100, collection_name: str='legal_qa', local:bool=True):
+# ---------------------------------------------------------------------------
+# High-level driver for JSONL -> Qdrant
+# ---------------------------------------------------------------------------
+
+def add_records_from_jsonl(
+    file_path: str,
+    batch_size: int = 100,
+    collection_name: Optional[str] = None,
+    ) -> None:
+    
     """
     Add records from a JSONL file to Qdrant in batches, avoiding overwriting existing records.
 
     :param file_path: Path to the JSONL file.
     :param batch_size: Number of records to process per batch.
     """
+    target_collection = collection_name or QA_COLLECTION_NAME
+    _log_config_banner()
+    _ensure_collection(target_collection)
+
     total_uploaded = 0
     total_skipped = 0
     total_records = 0
@@ -226,12 +299,12 @@ def add_records_from_jsonl(file_path: str, batch_size: int = 100, collection_nam
     logger.info(f"Starting upload process for file: {file_path} with batch size: {batch_size}")
 
     for batch_number, records in enumerate(load_jsonl_in_batches(file_path, batch_size), start=1):
-        batch_size_actual = len(records)
-        total_records += batch_size_actual
-        record_ids = [record.record_id for record in records]
+
+        total_records += len(records)
+        ids = [r.record_id for r in records]
 
         # Retrieve existing record IDs in Qdrant
-        existing_ids = get_existing_record_ids(record_ids)
+        existing_ids = get_existing_record_ids(target_collection, ids)
 
         # Determine new records to upload
         new_records = [record for record in records if record.record_id not in existing_ids]
@@ -239,28 +312,20 @@ def add_records_from_jsonl(file_path: str, batch_size: int = 100, collection_nam
         total_skipped += skipped
 
         if not new_records:
-            logger.info(f"Batch {batch_number}: All {batch_size_actual} records already exist. Skipping upload.")
+            logger.info("Batch %d: all %d records already exist; skipping.", batch_number, len(records))
             continue
 
         logger.info(f"Batch {batch_number}: {len(new_records)} new records to upload, {skipped} skipped.")
 
-        # Batch embed the new records' content
-        texts = [record.content for record in new_records]
-        embeddings = embedding_function.batch_embed(texts)
+        # Embed and upsert the new records
+        add_records_to_qdrant(new_records, target_collection)
 
-        # Prepare records with embeddings
-        records_with_embeddings = []
-        for record, embedding in zip(new_records, embeddings):
-            if not embedding:
-                logger.error(f"Skipping record {record.record_id} due to embedding failure.")
-                continue
-            records_with_embeddings.append(record)
 
-        # Use the existing batch upload method
-        add_records_to_qdrant(records_with_embeddings,collection_name, local)
-        total_uploaded += len(records_with_embeddings)
+        total_uploaded += len(new_records)
 
-        logger.info(f"Batch {batch_number}: Uploaded {len(records_with_embeddings)} records. Skipped {skipped} existing records.")
+        logger.info(
+            "Batch %d: uploaded %d; skipped %d existing.", batch_number, len(new_records), skipped
+            )
 
     logger.info(f"Upload complete: {total_uploaded} records uploaded, {total_skipped} records skipped, out of {total_records} total records.")
 
@@ -286,36 +351,27 @@ def validate_jsonl(file_path: str):
 if __name__ == "__main__":
     import sys
     import os
-    QA_COLLECTION_NAME = 'legal_qa_768'
-    DOC_COLLECTION_NAME='legal_doc_768'
-
-    # Default values for testing in VS Code
-    file_path = r"C:\Users\PC\git\legal_qa_rag\format_service\src\data\preprocessed\preprocessed_data.jsonl" 
-    batch_size = 100
-    use_local = True  # Set to False if you want to use a remote Qdrant server
-
-    # Check if running in a terminal with command-line arguments
-    if len(sys.argv) > 1:
-        import argparse
-
-        parser = argparse.ArgumentParser(description="Upload records from a JSONL file to Qdrant.")
-        parser.add_argument("file_path", type=str, help="Path to the JSONL file.")
-        parser.add_argument("--batch_size", type=int, default=100, help="Number of records to process per batch.")
-        parser.add_argument("--local", action="store_true", help="Use a local Qdrant server for testing.")
-        args = parser.parse_args()
-
-        file_path = args.file_path
-        batch_size = args.batch_size
-        use_local = args.local
-
-    # Validate the file path
-    if not os.path.isfile(file_path):
-        logger.error(f"File not found: {file_path}")
+    import argparse
+    parser = argparse.ArgumentParser(description="Upload records from JSONL to Qdrant.")
+    parser.add_argument("file_path", type=str, help="Path to the JSONL file.")
+    parser.add_argument("--batch_size", type=int, default=100, help="Number of records per batch.")
+    parser.add_argument("--collection", type=str, default=DOC_COLLECTION_NAME, help="Target Qdrant collection name.")
+    args = parser.parse_args()
+    if not os.path.isfile(args.file_path):
+        logger.error("File not found: %s", args.file_path)
         sys.exit(1)
 
-    # Reinitialize the Qdrant client based on the `use_local` argument
-    qdrant_client = initialize_qdrant()
 
+    try:
+        add_records_from_jsonl(args.file_path, batch_size=args.batch_size, collection_name=args.collection)
+    finally:
+        # Close the shared client once at the end of the run
+        try:
+            qdrant_client.close()
+        except Exception:
+            pass
+        logger.info("Qdrant client connection closed.")
 
-    # Add records to Qdrant
-    add_records_from_jsonl(file_path=file_path, batch_size=batch_size, collection_name=DOC_COLLECTION_NAME ,local=use_local)
+    # Default values for testing in VS Code
+    # file_path = r"C:\Users\PC\git\legal_qa_rag\format_service\src\data\raw\qa_data.jsonl" 
+    # python -m rag_service.src.services.qdrant_uploader "C:\Users\PC\git\legal_qa_rag\format_service\src\data\raw\qa_data.jsonl" --batch_size 100 --collection legal_doc_768 

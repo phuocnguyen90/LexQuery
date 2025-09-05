@@ -16,3 +16,7 @@ class LLMConfig(BaseModel):
     def from_app_config(cls, app_config: AppConfigLoader) -> 'LLMConfig':
         llm_section = app_config.get('llm', {})
         return cls(llm=llm_section)
+    
+    @classmethod
+    def get(self, key: str, default=None):
+        return self.llm.get(key, default)

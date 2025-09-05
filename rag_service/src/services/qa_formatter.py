@@ -20,15 +20,15 @@ from shared_libs.llm_providers import ProviderFactory
 
 # Load configuration and initialize Qdrant client and embedder as before
 config = Config.load()
-config_loader = AppConfigLoader()
+app_config = AppConfigLoader()
 qdrant_client = initialize_qdrant()
 logger = Logger.get_logger("QA formatter")
 
-embedding_config = EmbeddingConfig.from_config_loader(config_loader)
+embedding_config = EmbeddingConfig.get_embed_config(app_config)
 factory = EmbedderFactory(embedding_config)
 embedding_function = factory.create_embedder('local')  # or 'api' as needed
-default_provider_name = config_loader.get('llm', {}).get('provider', 'groq')
-default_llm_settings = config_loader.get('llm', {}).get(default_provider_name, {})
+default_provider_name = app_config.get('llm', {}).get('provider', 'groq')
+default_llm_settings = app_config.get('llm', {}).get(default_provider_name, {})
 llm_provider = ProviderFactory.get_provider(name=default_provider_name, config=default_llm_settings)
 
 

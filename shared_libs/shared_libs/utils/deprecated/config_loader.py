@@ -163,9 +163,9 @@ class DockerEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['docker'] = 'docker'
     service_url: str = Field(..., description="Docker API service URL.")
 
-class EC2EmbeddingConfig(BaseEmbeddingConfig):
-    provider: Literal['ec2'] = 'ec2'
-    service_url: str = Field(..., description="EC2 API service URL.")
+class CloudEmbeddingConfig(BaseEmbeddingConfig):
+    provider: Literal['cloud'] = 'cloud'
+    service_url: str = Field(..., description="CLOUD API service URL.")
 
 class GenAIEmbeddingConfig(BaseEmbeddingConfig):
     provider: Literal['genai'] = 'genai'
@@ -223,8 +223,8 @@ class EmbeddingConfig(BaseSettings):
                 parsed_api_providers[provider_name] = DockerEmbeddingConfig(
                     service_url=provider_data['service_url']
                 )
-            elif provider_name == "ec2":
-                parsed_api_providers[provider_name] = EC2EmbeddingConfig(
+            elif provider_name == "cloud":
+                parsed_api_providers[provider_name] = CloudEmbeddingConfig(
                     service_url=provider_data['service_url']
                 )
             # Add other API providers as needed

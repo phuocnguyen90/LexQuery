@@ -8,6 +8,11 @@ ProviderRegistry.register_provider("local", "shared_libs.config.provider_configs
 # ProviderRegistry.register_provider("openai_embedding", "shared_libs.config.provider_configs", "OpenAIEmbeddingConfig")
 # ProviderRegistry.register_provider("google_gemini_embedding", "shared_libs.config.provider_configs", "GoogleGeminiEmbeddingConfig")
 # ProviderRegistry.register_provider("docker", "shared_libs.config.provider_configs", "DockerEmbeddingConfig")
-ProviderRegistry.register_provider("ec2", "shared_libs.config.provider_configs", "EC2EmbeddingConfig")
+ProviderRegistry.register_provider("cloud", "shared_libs.config.provider_configs", "CLOUDEmbeddingConfig")
 # ProviderRegistry.register_provider("genai", "shared_libs.config.provider_configs", "GenAIEmbeddingConfig")
-# ProviderRegistry.register_provider("fastembed", "shared_libs.config.provider_configs", "FastEmbedEmbeddingConfig")
+ProviderRegistry.register_provider("fastembed", "shared_libs.config.provider_configs", "FastEmbedEmbeddingConfig")
+ProviderRegistry.register_provider(
+    "local_gemma3",
+    "shared_libs.config.provider_configs",
+    "GemmaLocalEmbedderConfig",
+)

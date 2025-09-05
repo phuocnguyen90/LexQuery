@@ -16,6 +16,7 @@ if parent_dir not in sys.path:
 
 # Imports from shared_libs
 from shared_libs.llm_providers import ProviderFactory
+from shared_libs.llm_providers.llm_provider import LLMProvider
 from shared_libs.utils.logger import Logger
 from shared_libs.config.app_config import AppConfigLoader, PromptConfigLoader
 
@@ -126,7 +127,7 @@ def reconstruct_source(source_id: str) -> str:
 async def query_rag(
     query_item,
     conversation_history,
-    provider: Optional[Any] = None,
+    provider: Optional[LLMProvider] = None,
     embedding_mode: Optional[str] = None,
     llm_provider_name: Optional[str] = None
 ) -> Dict[str, Any]:

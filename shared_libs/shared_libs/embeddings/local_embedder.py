@@ -9,7 +9,8 @@ import numpy as np
 
 logger = Logger.get_logger(module_name=__name__)
 
-@EmbedderRegistry.register('local')
+EmbedderRegistry.register("local", "shared_libs.embeddings.local_embedder", "LocalEmbedder")
+
 class LocalEmbedder(BaseEmbedder):
     required_fields = ["model_name", "cache_dir", "vector_dimension"]
 
